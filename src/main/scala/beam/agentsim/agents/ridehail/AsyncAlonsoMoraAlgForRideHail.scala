@@ -11,9 +11,9 @@ import org.jgrapht.graph.DefaultEdge
 import org.matsim.core.utils.collections.QuadTree
 
 import scala.collection.JavaConverters._
-import scala.collection.immutable.List
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.collection.mutable
 
 class AsyncAlonsoMoraAlgForRideHail(
   spatialDemand: QuadTree[CustomerRequest],
@@ -24,10 +24,9 @@ class AsyncAlonsoMoraAlgForRideHail(
 )(implicit val skimmer: BeamSkimmer) {
 
   private def vehicle2Requests(v: VehicleAndSchedule): (List[RTVGraphNode], List[(RTVGraphNode, RTVGraphNode)]) = {
-    import scala.collection.mutable.{ListBuffer => MListBuffer}
-    val vertices = MListBuffer.empty[RTVGraphNode]
-    val edges = MListBuffer.empty[(RTVGraphNode, RTVGraphNode)]
-    val finalRequestsList = MListBuffer.empty[RideHailTrip]
+    val vertices = mutable.ListBuffer.empty[RTVGraphNode]
+    val edges = mutable.ListBuffer.empty[(RTVGraphNode, RTVGraphNode)]
+    val requestsBuffer = mutable.ArrayBuffer.empty[RideHailTrip]
     val center = v.getLastDropoff.activity.getCoord
     spatialDemand
       .getDisk(
@@ -44,40 +43,40 @@ class AsyncAlonsoMoraAlgForRideHail(
           .getRidehailSchedule(timeWindow, v.schedule ++ List(r.pickup, r.dropoff), beamServices) match {
           case Some(schedule) =>
             val t = RideHailTrip(List(r), schedule)
-            finalRequestsList append t
-            if (!vertices.contains(v)) vertices append v
-            vertices append (r, t)
-            edges append ((r, t), (t, v))
+            requestsBuffer prepend t
+            if (!vertices.contains(v)) vertices prepend v
+            vertices prepend (r, t)
+            edges prepend ((r, t), (t, v))
           case _ =>
         }
     )
-    if (finalRequestsList.nonEmpty) {
+    if (requestsBuffer.nonEmpty) {
       for (k <- 2 until v.getFreeSeats + 1) {
-        val kRequestsList = MListBuffer.empty[RideHailTrip]
-        for {
-          t1 <- finalRequestsList
-          t2 <- finalRequestsList
-            .drop(finalRequestsList.indexOf(t1))
-            .withFilter(
-              x => !(x.requests exists (s => t1.requests contains s)) && (t1.requests.size + x.requests.size) == k
-            )
-        } yield {
-          AlonsoMoraPoolingAlgForRideHail
-            .getRidehailSchedule(
-              timeWindow,
-              v.schedule ++ (t1.requests ++ t2.requests).flatMap(x => List(x.pickup, x.dropoff)),
-              beamServices
-            ) match {
-            case Some(schedule) =>
-              val t = RideHailTrip(t1.requests ++ t2.requests, schedule)
-              kRequestsList append t
-              vertices append t
-              t.requests.foldLeft(()) { case (_, r) => edges append ((r, t)) }
-              edges append ((t, v))
-            case _ =>
-          }
+        val tripsList = mutable.ListBuffer.empty[RideHailTrip]
+        for (i <- 0 until requestsBuffer.size - 1) {
+          val reqA = requestsBuffer(i)
+          requestsBuffer
+            .slice(i + 1, requestsBuffer.size)
+            .withFilter(x => (x.requests.size + reqA.requests.size) == k)
+            .withFilter(x => !(x.requests exists (s => reqA.requests contains s)))
+            .foreach { reqB =>
+              AlonsoMoraPoolingAlgForRideHail
+                .getRidehailSchedule(
+                  timeWindow,
+                  v.schedule ++ (reqA.requests ++ reqB.requests).flatMap(x => List(x.pickup, x.dropoff)),
+                  beamServices
+                ) match {
+                case Some(schedule) =>
+                  val trip = RideHailTrip(reqA.requests ++ reqB.requests, schedule)
+                  tripsList prepend trip
+                  vertices prepend trip
+                  trip.requests.foldLeft(()) { case (_, r) => edges prepend ((r, trip)) }
+                  edges prepend ((trip, v))
+                case _ =>
+              }
+            }
         }
-        finalRequestsList.appendAll(kRequestsList)
+        requestsBuffer.appendAll(tripsList)
       }
     }
     (vertices.toList, edges.toList)
@@ -108,11 +107,10 @@ class AsyncAlonsoMoraAlgForRideHail(
     val rTvGFuture = asyncBuildOfRTVGraph()
     val V: Int = supply.foldLeft(0) { case (maxCapacity, v) => Math max (maxCapacity, v.getFreeSeats) }
     val C0: Int = timeWindow.foldLeft(0)(_ + _._2)
-    import scala.collection.mutable.{ListBuffer => MListBuffer}
     rTvGFuture.map { rTvG =>
-      val greedyAssignmentList = MListBuffer.empty[(RideHailTrip, VehicleAndSchedule, Int)]
-      val Rok = MListBuffer.empty[CustomerRequest]
-      val Vok = MListBuffer.empty[VehicleAndSchedule]
+      val greedyAssignmentList = mutable.ListBuffer.empty[(RideHailTrip, VehicleAndSchedule, Int)]
+      val Rok = mutable.ListBuffer.empty[CustomerRequest]
+      val Vok = mutable.ListBuffer.empty[VehicleAndSchedule]
       for (k <- V to 1 by -1) {
         rTvG
           .vertexSet()
@@ -138,14 +136,13 @@ class AsyncAlonsoMoraAlgForRideHail(
             (trip, vehicle, cost)
           }
           .toList
-          .sortBy(_._3)
+          .sortBy(- _._3)
           .foldLeft(()) {
             case (_, (trip, vehicle, cost)) =>
-              if (!(trip.requests exists (r => Rok contains r)) &&
-                  !(Vok contains vehicle)) {
-                Rok.appendAll(trip.requests)
-                Vok.append(vehicle)
-                greedyAssignmentList.append((trip, vehicle, cost))
+              if (!(trip.requests exists (r => Rok contains r)) && !(Vok contains vehicle)) {
+                Rok.prependAll(trip.requests)
+                Vok.prepend(vehicle)
+                greedyAssignmentList.prepend((trip, vehicle, cost))
               }
           }
       }
