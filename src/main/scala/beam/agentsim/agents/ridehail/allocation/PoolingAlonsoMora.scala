@@ -148,6 +148,8 @@ class PoolingAlonsoMora(val rideHailManager: RideHailManager)
         rideHailManager.beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.pickupTimeWindowInSec
       val dropoffWindow =
         rideHailManager.beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.dropoffTimeWindowInSec
+      val maxPassengers =
+        rideHailManager.beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.maxPassengersPerVehicle
 
       //      rideHailManager.log.info("Num custs: {} num vehs: {}", spatialPoolCustomerReqs.size(), availVehicles.size)
       val algo = new AsyncAlonsoMoraAlgForRideHail(
@@ -155,6 +157,7 @@ class PoolingAlonsoMora(val rideHailManager: RideHailManager)
         availVehicles.toList,
         Map[MobilityRequestTrait, Int]((Pickup, pickupWindow), (Dropoff, dropoffWindow)),
         maxRequestsPerVehicle = maxRequests,
+        maxPassengersPerVehicle = maxPassengers,
         rideHailManager.beamServices
       )
       import scala.concurrent.duration._

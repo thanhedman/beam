@@ -53,7 +53,7 @@ class AsyncAlonsoMoraAlgForRideHail(
           case _ =>
         }
     )
-    tripsMapByK.put(1, mutable.ListBuffer(tripsBuffer))
+    tripsMapByK.put(1, tripsBuffer.clone)
     if (tripsBuffer.nonEmpty) (2 until (passengersPerVehicle + 1)).foreach { k =>
       val kTripsBuffer = mutable.ListBuffer.empty[RideHailTrip]
       tripsBuffer.foreach { reqA =>
@@ -73,7 +73,7 @@ class AsyncAlonsoMoraAlgForRideHail(
                   vertices append trip
                   trip.requests.foldLeft(()) { case (_, r) => edges append ((r, trip)) }
                   edges append ((trip, v))
-                  if(maxK < k) maxK = k
+                  if (maxK < k) maxK = k
                 case _ =>
             }
           )
@@ -111,45 +111,46 @@ class AsyncAlonsoMoraAlgForRideHail(
   def greedyAssignment(): Future[List[(RideHailTrip, VehicleAndSchedule, Int)]] = {
     val rTvGFuture = asyncBuildOfRTVGraph()
     val C0: Int = timeWindow.foldLeft(0)(_ + _._2)
-    rTvGFuture.map { case (rTvG, maxK) =>
-      val greedyAssignmentList = mutable.ListBuffer.empty[(RideHailTrip, VehicleAndSchedule, Int)]
-      val Rok = mutable.ListBuffer.empty[CustomerRequest]
-      val Vok = mutable.ListBuffer.empty[VehicleAndSchedule]
-      (maxK to 1 by -1).foreach { k =>
-        rTvG
-          .vertexSet()
-          .asScala
-          .filter(t => t.isInstanceOf[RideHailTrip] && t.asInstanceOf[RideHailTrip].requests.size == k)
-          .map { t =>
-            val trip = t.asInstanceOf[RideHailTrip]
-            val vehicle = rTvG
-              .getEdgeTarget(
-                rTvG
-                  .outgoingEdgesOf(trip)
-                  .asScala
-                  .filter(e => rTvG.getEdgeTarget(e).isInstanceOf[VehicleAndSchedule])
-                  .head
-              )
-              .asInstanceOf[VehicleAndSchedule]
-            val cost = trip.cost + C0 * rTvG
-              .outgoingEdgesOf(trip)
-              .asScala
-              .filter(e => rTvG.getEdgeTarget(e).isInstanceOf[CustomerRequest])
-              .count(y => !trip.requests.contains(y.asInstanceOf[CustomerRequest]))
+    rTvGFuture.map {
+      case (rTvG, maxK) =>
+        val greedyAssignmentList = mutable.ListBuffer.empty[(RideHailTrip, VehicleAndSchedule, Int)]
+        val Rok = mutable.ListBuffer.empty[CustomerRequest]
+        val Vok = mutable.ListBuffer.empty[VehicleAndSchedule]
+        (maxK to 1 by -1).foreach { k =>
+          rTvG
+            .vertexSet()
+            .asScala
+            .filter(t => t.isInstanceOf[RideHailTrip] && t.asInstanceOf[RideHailTrip].requests.size == k)
+            .map { t =>
+              val trip = t.asInstanceOf[RideHailTrip]
+              val vehicle = rTvG
+                .getEdgeTarget(
+                  rTvG
+                    .outgoingEdgesOf(trip)
+                    .asScala
+                    .filter(e => rTvG.getEdgeTarget(e).isInstanceOf[VehicleAndSchedule])
+                    .head
+                )
+                .asInstanceOf[VehicleAndSchedule]
+              val cost = trip.cost + C0 * rTvG
+                .vertexSet()
+                .asScala
+                .count(x => x.isInstanceOf[CustomerRequest] && !trip.requests.contains(x.asInstanceOf[CustomerRequest]))
 
-            (trip, vehicle, cost)
-          }
-          .toList
-          .sortBy(_._3)
-          .foreach { case (trip, vehicle, cost) =>
-              if (!(trip.requests exists (r => Rok contains r)) && !(Vok contains vehicle)) {
-                Rok.appendAll(trip.requests)
-                Vok.append(vehicle)
-                greedyAssignmentList.append((trip, vehicle, cost))
-              }
-          }
-      }
-      greedyAssignmentList.toList
+              (trip, vehicle, cost)
+            }
+            .toList
+            .sortBy(_._3)
+            .foreach {
+              case (trip, vehicle, cost) =>
+                if (!(trip.requests exists (r => Rok contains r)) && !(Vok contains vehicle)) {
+                  Rok.appendAll(trip.requests)
+                  Vok.append(vehicle)
+                  greedyAssignmentList.append((trip, vehicle, cost))
+                }
+            }
+        }
+        greedyAssignmentList.toList
     }
   }
 }

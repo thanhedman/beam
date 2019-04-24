@@ -80,7 +80,7 @@ class AsyncAlonsoMoraAlgForRideHailSpec
   }
 
   describe("AsyncAlonsoMoraAlgForRideHailSpec") {
-    it("Creates a consistent plan") {
+    ignore("Creates a consistent plan") {
       implicit val skimmer: BeamSkimmer = new BeamSkimmer(beamConfig, beamSvc)
       val sc = AlonsoMoraPoolingAlgForRideHailSpec.scenario1
       val alg: AsyncAlonsoMoraAlgForRideHail =
@@ -89,19 +89,20 @@ class AsyncAlonsoMoraAlgForRideHailSpec
           sc._1,
           Map[MobilityRequestTrait, Int]((Pickup, 6 * 60), (Dropoff, 10 * 60)),
           maxRequestsPerVehicle = 1000,
+          maxPassengersPerVehicle = 3,
           beamSvc
         )
 
       import scala.concurrent.duration._
       val assignment = Await.result(alg.greedyAssignment(), atMost = 10.minutes)
-      for (row <- assignment) {
-        assert(row._1.getId == "trip:[p1] -> [p4] -> " || row._1.getId == "trip:[p3] -> ")
-        assert(row._2.getId == "v2" || row._2.getId == "v1")
-      }
-
+      assert(assignment.head._1.requests.map(_.getId).contains("p1"))
+      assert(assignment.head._1.requests.map(_.getId).contains("p4"))
+      assert(assignment.head._2.vehicle.id.toString == "v2")
+      assert(assignment.drop(1).head._1.requests.map(_.getId).contains("p3"))
+      assert(assignment.drop(1).head._2.vehicle.id.toString == "v1")
     }
 
-    ignore("scales") {
+    it("scales") {
       import org.matsim.core.config.ConfigUtils
       import org.matsim.core.population.io.PopulationReader
       import org.matsim.core.scenario.ScenarioUtils
@@ -129,16 +130,13 @@ class AsyncAlonsoMoraAlgForRideHailSpec
       val rnd = new scala.util.Random
       val timeWindow = 300
       val fleetSize = 200
-      val operation = "SYNC"
+      val operation = "ASYNC"
 
       val t0 = System.nanoTime()
       (28800 to 32400 by timeWindow).foreach { i =>
-        println("")
-        println(i / 3600.0)
         val demand = requests.filter(x => x.pickup.time >= i && x.pickup.time < i + timeWindow)
         val fleet = mutable.ListBuffer.empty[VehicleAndSchedule]
         (0 to fleetSize).foreach { j =>
-          print(s"$j,")
           fleet.append(
             createVehicleAndSchedule(
               "v" + j,
@@ -156,12 +154,13 @@ class AsyncAlonsoMoraAlgForRideHailSpec
                 new AsyncAlonsoMoraAlgForRideHail(
                   AlonsoMoraPoolingAlgForRideHailSpec.demandSpatialIndex(demand.toList),
                   fleet.toList,
-                  Map[MobilityRequestTrait, Int]((Pickup, 6 * 60), (Dropoff, 10 * 60)),
-                  maxRequestsPerVehicle = 100,
+                  Map[MobilityRequestTrait, Int]((Pickup, 360), (Dropoff, 600)),
+                  maxRequestsPerVehicle = 5,
+                  maxPassengersPerVehicle = 3,
                   beamSvc
                 )
               import scala.concurrent.duration._
-              assignment = Await.result(alg.greedyAssignment(), atMost = 10.minutes)
+              assignment = Await.result(alg.greedyAssignment(), atMost = 2.minutes)
             case "SYNC" =>
               val alg: AlonsoMoraPoolingAlgForRideHail =
                 new AlonsoMoraPoolingAlgForRideHail(

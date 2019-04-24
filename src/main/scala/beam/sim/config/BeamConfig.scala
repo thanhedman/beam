@@ -653,7 +653,8 @@ object BeamConfig {
             case class AlonsoMora(
               dropoffTimeWindowInSec: scala.Int,
               maxRequestsPerVehicle: scala.Int,
-              pickupTimeWindowInSec: scala.Int
+              pickupTimeWindowInSec: scala.Int,
+              maxPassengersPerVehicle: scala.Int
             )
 
             object AlonsoMora {
@@ -667,7 +668,9 @@ object BeamConfig {
                   maxRequestsPerVehicle =
                     if (c.hasPathOrNull("maxRequestsPerVehicle")) c.getInt("maxRequestsPerVehicle") else 5,
                   pickupTimeWindowInSec =
-                    if (c.hasPathOrNull("pickupTimeWindowInSec")) c.getInt("pickupTimeWindowInSec") else 360
+                    if (c.hasPathOrNull("pickupTimeWindowInSec")) c.getInt("pickupTimeWindowInSec") else 360,
+                  maxPassengersPerVehicle =
+                    if (c.hasPathOrNull("maxPassengersPerVehicle")) c.getInt("maxPassengersPerVehicle") else 3,
                 )
               }
             }
