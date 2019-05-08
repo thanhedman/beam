@@ -408,12 +408,12 @@ trait BeamHelper extends LazyLogging {
     val networkCoordinator: NetworkCoordinator = buildNetworkCoordinator(beamExecutionConfig.beamConfig)
     val scenario = buildScenarioFromMatsimConfig(beamExecutionConfig.matsimConfig, networkCoordinator)
     val injector: inject.Injector = buildInjector(config, scenario, networkCoordinator)
-    val services = buildBeamServices(injector, scenario, beamExecutionConfig.matsimConfig, networkCoordinator)
+    val (services, newScenario) = buildBeamServices(injector, scenario, beamExecutionConfig.matsimConfig, networkCoordinator)
 
     warmStart(beamExecutionConfig.beamConfig, beamExecutionConfig.matsimConfig)
 
-    runBeam(services, scenario, networkCoordinator, beamExecutionConfig.outputDirectory)
-    (scenario.getConfig, beamExecutionConfig.outputDirectory)
+    runBeam(services, newScenario, networkCoordinator, beamExecutionConfig.outputDirectory)
+    (newScenario.getConfig, beamExecutionConfig.outputDirectory)
   }
 
   protected def buildScenarioFromMatsimConfig(
@@ -430,13 +430,13 @@ trait BeamHelper extends LazyLogging {
     scenario: MutableScenario,
     matsimConfig: MatsimConfig,
     networkCoordinator: NetworkCoordinator
-  ): BeamServices = {
+  ): (BeamServices, MutableScenario) = {
     val result = injector.getInstance(classOf[BeamServices])
     result.setTransitFleetSizes(networkCoordinator.tripFleetSizeMap)
 
-    fillScenarioFromExternalSources(injector, matsimConfig, networkCoordinator, result)
+    val newScenario = fillScenarioFromExternalSources(injector, matsimConfig, networkCoordinator, result)
 
-    result
+    (result, newScenario)
   }
 
   protected def buildInjector(
@@ -483,7 +483,7 @@ trait BeamHelper extends LazyLogging {
     matsimConfig: MatsimConfig,
     networkCoordinator: NetworkCoordinator,
     beamServices: BeamServices
-  ): Scenario = {
+  ): MutableScenario = {
     val beamConfig = beamServices.beamConfig
     val useExternalDataForScenario: Boolean =
       Option(beamConfig.beam.exchange.scenario.folder).exists(!_.isEmpty)
