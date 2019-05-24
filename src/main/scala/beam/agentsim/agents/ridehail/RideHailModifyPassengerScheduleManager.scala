@@ -3,7 +3,7 @@ package beam.agentsim.agents.ridehail
 import akka.actor.ActorRef
 import akka.event.LoggingAdapter
 import beam.agentsim.agents.HasTickAndTrigger
-import beam.agentsim.agents.modalbehaviors.DrivesVehicle.{StartLegTrigger, StopDriving}
+import beam.agentsim.agents.modalbehaviors.DrivesVehicle.StopDriving
 import beam.agentsim.agents.ridehail.RideHailAgent._
 import beam.agentsim.agents.ridehail.RideHailManager.{BufferedRideHailRequestsTrigger, RideHailRepositioningTrigger}
 import beam.agentsim.agents.ridehail.RideHailVehicleManager.RideHailAgentLocation
@@ -43,12 +43,15 @@ class RideHailModifyPassengerScheduleManager(
     interruptIdToModifyPassengerScheduleStatus.get(reply.interruptId) match {
       case None =>
         log.error(
-          "RideHailModifyPassengerScheduleManager- interruptId not found: interruptId {},interruptedPassengerSchedule {}, vehicle {}, tick {}",
+          "RideHailModifyPasseng  erScheduleManager- interruptId not found: interruptId {},interruptedPassengerSchedule {}, vehicle {}, tick {}",
           reply.interruptId,
           reply.asInstanceOf[InterruptedWhileDriving].passengerSchedule,
           reply.vehicleId,
           reply.tick
         )
+        cancelRepositionAttempt()
+      case Some(status) if reply.isInstanceOf[InterruptedWhileOffline] =>
+        log.debug("Cancelling repositioning for {}, interruptId {}. status: {}", reply.vehicleId, reply.interruptId, status)
         cancelRepositionAttempt()
       case Some(modifyStatus) =>
         assert(reply.vehicleId == modifyStatus.vehicleId)
