@@ -6,7 +6,8 @@ import java.util.Random
 import java.util.concurrent.TimeUnit
 
 import akka.actor.SupervisorStrategy.Stop
-import akka.actor.{Actor, ActorLogging, ActorRef, OneForOneStrategy, Props, Stash, Terminated}
+import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, OneForOneStrategy, Props, Stash, Terminated}
+import akka.dispatch.{Envelope => AkkaEnvelope}
 import akka.event.LoggingReceive
 import akka.pattern._
 import akka.util.Timeout
@@ -20,11 +21,7 @@ import beam.agentsim.agents.ridehail.RideHailAgent._
 import beam.agentsim.agents.ridehail.RideHailManager._
 import beam.agentsim.agents.ridehail.RideHailVehicleManager.RideHailAgentLocation
 import beam.agentsim.agents.ridehail.allocation._
-import beam.agentsim.agents.vehicles.AccessErrorCodes.{
-  CouldNotFindRouteToCustomer,
-  DriverNotFoundError,
-  RideHailVehicleTakenError
-}
+import beam.agentsim.agents.vehicles.AccessErrorCodes.{CouldNotFindRouteToCustomer, DriverNotFoundError, RideHailVehicleTakenError}
 import beam.agentsim.agents.vehicles.EnergyEconomyAttributes.Powertrain
 import beam.agentsim.agents.vehicles.VehicleProtocol.StreetVehicle
 import beam.agentsim.agents.vehicles.{PassengerSchedule, _}
@@ -452,7 +449,14 @@ class RideHailManager(
     }
   }
 
+  import scala.concurrent.duration._
+
+  val tickTask: Cancellable =
+    context.system.scheduler.schedule(2.seconds, 30.seconds, self, "tick")(context.dispatcher)
+
   override def receive: Receive = LoggingReceive {
+    case "tick" =>
+      log.info(s"stashed: ${stashed}")
     case LogActorState =>
       ReflectionUtils.logFields(log, this, 0)
       ReflectionUtils.logFields(log, rideHailResourceAllocationManager, 0)
@@ -671,13 +675,14 @@ class RideHailManager(
             case None =>
               // None here means this is part of repositioning, i.e. not tied to a reservation request
               log.debug(
-                "modifyPassengerScheduleAck received, handling with modifyPassengerScheduleManager {}",
-                modifyPassengerScheduleAck
+                "modifyPassengerScheduleAck received, handling with modifyPassengerScheduleManager {} numberPendingModifyPassengerScheduleAcks: {}. {}. ",
+                vehicleId, modifyPassengerScheduleManager.numberPendingModifyPassengerScheduleAcks, modifyPassengerScheduleAck
               )
               modifyPassengerScheduleManager
                 .modifyPassengerScheduleAckReceived(
                   triggersToSchedule,
-                  tick
+                  tick,
+                  vehicleId
                 )
             case Some(requestId) =>
               // Some here means this is part of a reservation / dispatch of vehicle to a customer
@@ -690,12 +695,14 @@ class RideHailManager(
       rideHailNetworkApi.setTravelTime(travelTime)
 
     case DebugRideHailManagerDuringExecution =>
+      log.debug("DebugRideHailManagerDuringExecution")
       modifyPassengerScheduleManager.printState()
 
     case trigger @ TriggerWithId(BufferedRideHailRequestsTrigger(tick), triggerId) =>
       currentlyProcessingTimeoutTrigger match {
         case Some(_) =>
           log.debug("Stashing BufferedRideHailRequestsTrigger({})", tick)
+          stashed += 1
           stash()
         case None =>
           currentlyProcessingTimeoutTrigger = Some(trigger)
@@ -726,14 +733,16 @@ class RideHailManager(
 //      DebugRepositioning.produceRepositioningDebugImages(tick, this)
       currentlyProcessingTimeoutTrigger match {
         case Some(_) =>
+          stashed += 1
           stash()
         case None =>
           currentlyProcessingTimeoutTrigger = Some(trigger)
           startRepositioning(tick, triggerId)
       }
 
-    case ReduceAwaitingRepositioningAckMessagesByOne =>
-      modifyPassengerScheduleManager.cancelRepositionAttempt()
+    case ReduceAwaitingRepositioningAckMessagesByOne(vehicleId) =>
+      log.error("ReduceAwaitingRepositioningAckMessagesByOne because of {}. numPendingRoutingRequestsForReservations: {}", vehicleId, numPendingRoutingRequestsForReservations)
+      modifyPassengerScheduleManager.cancelRepositionAttempt(vehicleId)
 
     case MoveOutOfServiceVehicleToDepotParking(passengerSchedule, tick, vehicleId, stall) =>
       pendingAgentsSentToPark.put(vehicleId, stall)
@@ -749,7 +758,7 @@ class RideHailManager(
         )
       } else {
         // Failed attempt to reposition a car that is no longer idle
-        modifyPassengerScheduleManager.cancelRepositionAttempt()
+        modifyPassengerScheduleManager.cancelRepositionAttempt(vehicleId)
       }
 
     case reply @ InterruptedWhileOffline(interruptId, vehicleId, tick) =>
@@ -1330,10 +1339,16 @@ class RideHailManager(
     )
   }
 
+  var stashed: Int = 0
+  val method = this.getClass.getDeclaredMethod("akka$actor$StashSupport$$theStash")
+
   def cleanUp = {
+    val stash = method.invoke(this).asInstanceOf[Vector[AkkaEnvelope]]
+    stashed = stashed - stash.size
     currentlyProcessingTimeoutTrigger = None
     unstashAll()
   }
+
 
   def startRepositioning(tick: Int, triggerId: Long) = {
     log.debug("Starting wave of repositioning at {}", tick)
@@ -1389,12 +1404,13 @@ class RideHailManager(
             )
             self ! RepositionVehicleRequest(passengerSchedule, tick, vehicleId, rideHailAgentLocation.rideHailAgent)
           } else {
-            self ! ReduceAwaitingRepositioningAckMessagesByOne
+            self ! ReduceAwaitingRepositioningAckMessagesByOne(vehicleId)
           }
         }
 
       } else {
-        modifyPassengerScheduleManager.cancelRepositionAttempt()
+        log.error("startRepositioning {} is not idle, cancelling. numPendingRoutingRequestsForReservations: {}", vehicleId, numPendingRoutingRequestsForReservations)
+        modifyPassengerScheduleManager.cancelRepositionAttempt(vehicleId)
       }
     }
 

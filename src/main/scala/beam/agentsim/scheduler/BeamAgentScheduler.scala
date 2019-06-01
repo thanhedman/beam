@@ -7,11 +7,7 @@ import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated
 import akka.event.LoggingReceive
 import akka.util.Timeout
 import beam.agentsim.agents.BeamAgent.Finish
-import beam.agentsim.agents.ridehail.RideHailManager.{
-  ContinueBufferedRideHailRequests,
-  RecoverFromStuckness,
-  RideHailRepositioningTrigger
-}
+import beam.agentsim.agents.ridehail.RideHailManager.{DebugRideHailManagerDuringExecution, RecoverFromStuckness, RideHailRepositioningTrigger}
 import beam.agentsim.scheduler.BeamAgentScheduler._
 import beam.agentsim.scheduler.Trigger.TriggerWithId
 import beam.sim.config.BeamConfig
@@ -315,6 +311,9 @@ class BeamAgentScheduler(
         log.warning("Processing {} unexpected agents", unexpectedStuckAgents.size)
         unexpectedStuckAgents.foreach { stuckInfo =>
           val st = stuckInfo.value
+          if (st.agent.path.name.contains("RideHailManager")) {
+            st.agent ! DebugRideHailManagerDuringExecution
+          }
           val times = scheduledTriggerToStuckTimes.getOrElse(st, 0)
           scheduledTriggerToStuckTimes.put(st, times + 1)
           // We have to add them back to `stuckFinder`
