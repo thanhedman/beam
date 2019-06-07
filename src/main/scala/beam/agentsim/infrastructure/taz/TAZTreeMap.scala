@@ -4,6 +4,7 @@ import java.io._
 import java.util
 import java.util.zip.GZIPInputStream
 
+import beam.agentsim.infrastructure.taz.h3.TazH3index
 import beam.utils.matsim_conversion.ShapeUtils.{CsvTaz, QuadTreeBounds}
 import com.vividsolutions.jts.geom.Geometry
 import org.matsim.api.core.v01.{Coord, Id}
@@ -82,7 +83,8 @@ object TAZTreeMap {
           val taz = new TAZ(
             f.getAttribute(tazIDFieldName).asInstanceOf[String],
             new Coord(g.getCoordinate.x, g.getCoordinate.y),
-            g.getArea
+            g.getArea,
+            TazH3index.buildFromGeofence(g.getCoordinates)
           )
           tazQuadTree.put(taz.coord.getX, taz.coord.getY, taz)
         case _ =>
