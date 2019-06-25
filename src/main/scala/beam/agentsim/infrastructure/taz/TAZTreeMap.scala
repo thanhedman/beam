@@ -209,9 +209,9 @@ object TAZTreeMap {
   }
 
   def randomLocationInTAZ(
-                           taz: TAZ,
-                           rand: scala.util.Random = new scala.util.Random(System.currentTimeMillis())
-                         ): Coord = {
+    taz: TAZ,
+    rand: scala.util.Random = new scala.util.Random(System.currentTimeMillis())
+  ): Coord = {
     val radius = Math.sqrt(taz.areaInSquareMeters / Math.PI) / 2
     val a = 2 * Math.PI * rand.nextDouble()
     val r = radius * Math.sqrt(rand.nextDouble())
