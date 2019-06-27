@@ -15,6 +15,8 @@ import beam.agentsim.scheduler.BeamAgentScheduler
 import beam.agentsim.scheduler.BeamAgentScheduler.{CompletionNotice, ScheduleTrigger, StartSchedule}
 import beam.router.BeamRouter.InitTransit
 import beam.router.osm.TollCalculator
+import beam.router.skim.H3Skimmer.H3SkimmerEventHandler
+import beam.router.skim.H3SkimmerMap
 import beam.router.{BeamRouter, BeamSkimmer, FreeFlowTravelTime, RouteHistory}
 import beam.sim.config.BeamConfig.Beam
 import beam.sim.metrics.MetricsSupport
@@ -73,6 +75,7 @@ class BeamMobsim @Inject()(
 
     if (beamServices.beamConfig.beam.debug.debugEnabled)
       logger.info(DebugLib.gcAndGetMemoryLogMessage("run.start (after GC): "))
+    //eventsManager.addHandler(new H3SkimmerEventHandler(new H3SkimmerMap()))
     beamServices.startNewIteration()
     eventsManager.initProcessing()
     val iteration = actorSystem.actorOf(

@@ -194,7 +194,7 @@ object BeamServices {
 
   val defaultTazTreeMap: TAZTreeMap = {
     val tazQuadTree: QuadTree[TAZ] = new QuadTree(-1, -1, 1, 1)
-    val taz = new TAZ("0", new Coord(0.0, 0.0), 0.0)
+    val taz = new TAZ("0", new Coord(0.0, 0.0), 0.0, Array.empty[Coord])
     tazQuadTree.put(taz.coord.getX, taz.coord.getY, taz)
     new TAZTreeMap(tazQuadTree)
   }
