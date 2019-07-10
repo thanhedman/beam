@@ -56,6 +56,7 @@ object DrivesVehicle {
     def id: Id[BeamVehicle]
     def streetVehicle: StreetVehicle
   }
+  case class EndRefuelData(chargingEndTick: Int, energyDelivered: Double)
   case class ActualVehicle(vehicle: BeamVehicle) extends VehicleOrToken {
     override def id: Id[BeamVehicle] = vehicle.id
     override def streetVehicle: StreetVehicle = vehicle.toStreetVehicle
@@ -774,7 +775,7 @@ trait DrivesVehicle[T <: DrivingData] extends BeamAgent[T] with Stash {
       0.0
   }
 
-  def handleStartCharging(tick: Int, vehicle: BeamVehicle)(schedulerMessage: (Int, Double) => SchedulerMessage) = {
+  def handleStartCharging(tick: Int, vehicle: BeamVehicle)(schedulerMessage: EndRefuelData => SchedulerMessage) = {
     log.debug("Vehicle {} connects to charger @ stall {}", vehicle.id, vehicle.stall.get)
     vehicle.connectToChargingPoint()
     eventsManager.processEvent(
@@ -797,7 +798,7 @@ trait DrivesVehicle[T <: DrivingData] extends BeamAgent[T] with Stash {
       vehicle.id
     )
 
-    scheduler ! schedulerMessage(chargingEndTick, energyDelivered)
+    scheduler ! schedulerMessage(EndRefuelData(chargingEndTick, energyDelivered))
   }
 
 }
