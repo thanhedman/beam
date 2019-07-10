@@ -260,11 +260,11 @@ class RideHailAgent(
       log.debug("Refuel started at {}, triggerId: {}", tick, triggerId)
 
       if (vehicle.isBEV || vehicle.isPHEV) {
-        handleStartCharging(tick, vehicle) { (chargingEndTick: Int, energyDelivered: Double) =>
+        handleStartCharging(tick, vehicle) { (endRefuelData: EndRefuelData) =>
           CompletionNotice(
             triggerId,
             Vector(
-              ScheduleTrigger(EndRefuelSessionTrigger(chargingEndTick, tick, energyDelivered, Some(vehicle)), self)
+              ScheduleTrigger(EndRefuelSessionTrigger(endRefuelData.chargingEndTick, tick, endRefuelData.energyDelivered, Some(vehicle)), self)
             )
           )
         }
