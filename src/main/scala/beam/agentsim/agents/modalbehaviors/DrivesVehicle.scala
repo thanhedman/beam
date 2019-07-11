@@ -314,9 +314,14 @@ trait DrivesVehicle[T <: DrivingData] extends BeamAgent[T] with Stash {
             if (currentBeamVehicle.isBEV | currentBeamVehicle.isPHEV) {
               stall.chargingPointType match {
                 case Some(_) => // Currently only occurs when a PersonAgent charges
-                  handleStartCharging(tick, currentBeamVehicle) { (chargingEndTick: Int, energyDelivered: Double) =>
+                  handleStartCharging(tick, currentBeamVehicle) { (endRefuelData: EndRefuelData) =>
                     ScheduleTrigger(
-                      EndRefuelSessionTrigger(chargingEndTick, tick, energyDelivered, Some(currentBeamVehicle)),
+                      EndRefuelSessionTrigger(
+                        endRefuelData.chargingEndTick,
+                        tick,
+                        endRefuelData.energyDelivered,
+                        Some(currentBeamVehicle)
+                      ),
                       self
                     )
                   }

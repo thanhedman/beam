@@ -264,7 +264,15 @@ class RideHailAgent(
           CompletionNotice(
             triggerId,
             Vector(
-              ScheduleTrigger(EndRefuelSessionTrigger(endRefuelData.chargingEndTick, tick, endRefuelData.energyDelivered, Some(vehicle)), self)
+              ScheduleTrigger(
+                EndRefuelSessionTrigger(
+                  endRefuelData.chargingEndTick,
+                  tick,
+                  endRefuelData.energyDelivered,
+                  Some(vehicle)
+                ),
+                self
+              )
             )
           )
         }
