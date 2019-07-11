@@ -1,7 +1,6 @@
 package beam.agentsim.infrastructure.parking
 
 import beam.agentsim.agents.choice.logit.MultinomialLogit
-
 import scala.util.{Failure, Random, Success, Try}
 import beam.agentsim.infrastructure.charging._
 import beam.agentsim.infrastructure.taz.TAZ
@@ -66,9 +65,10 @@ object ParkingZoneSearch {
     tree: ZoneSearch[TAZ],
     parkingZones: Array[ParkingZone],
     distanceFunction: (Coord, Coord) => Double,
-    random: Random
+    random: Random,
+    vehicleCanParkAtCharger: Boolean
   ): Option[ParkingSearchResult] = {
-    val found = findParkingZones(destinationUTM, tazList, parkingTypes, tree, parkingZones, random)
+    val found = findParkingZones(destinationUTM, tazList, parkingTypes, tree, parkingZones, random, vehicleCanParkAtCharger)
 //    takeBestByRanking(destinationUTM, valueOfTime, parkingDuration, found, utilityFunction, distanceFunction)
     takeBestBySampling(
       found,
@@ -98,7 +98,8 @@ object ParkingZoneSearch {
     parkingTypes: Seq[ParkingType],
     tree: ZoneSearch[TAZ],
     parkingZones: Array[ParkingZone],
-    random: Random
+    random: Random,
+    vehicleCanParkAtCharger: Boolean
   ): Seq[ParkingAlternative] = {
 
     // conduct search (toList required to combine Option and List monads)
@@ -108,7 +109,7 @@ object ParkingZoneSearch {
       parkingType         <- parkingTypes
       parkingZoneIds      <- parkingTypesSubtree.get(parkingType).toList
       parkingZoneId       <- parkingZoneIds
-      if parkingZones(parkingZoneId).stallsAvailable > 0
+      if parkingZones(parkingZoneId).stallsAvailable > 0 && canThisCarParkHere(parkingZones(parkingZoneId), parkingType, vehicleCanParkAtCharger)
     } yield {
       // get the zone
       Try {
@@ -122,6 +123,17 @@ object ParkingZoneSearch {
         case Failure(e) =>
           throw new IndexOutOfBoundsException(s"Attempting to access ParkingZone with index $parkingZoneId failed.\n$e")
       }
+    }
+  }
+
+  def canThisCarParkHere(
+    parkingZone: ParkingZone,
+    parkingType: ParkingType,
+    vehicleCanParkAtCharger: Boolean
+  ): Boolean = {
+    parkingZone.chargingPointType match {
+      case Some(_) => vehicleCanParkAtCharger
+      case None    => true
     }
   }
 
