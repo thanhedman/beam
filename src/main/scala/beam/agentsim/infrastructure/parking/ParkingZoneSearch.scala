@@ -68,7 +68,8 @@ object ParkingZoneSearch {
     random: Random,
     vehicleCanParkAtCharger: Boolean
   ): Option[ParkingSearchResult] = {
-    val found = findParkingZones(destinationUTM, tazList, parkingTypes, tree, parkingZones, random, vehicleCanParkAtCharger)
+    val found =
+      findParkingZones(destinationUTM, tazList, parkingTypes, tree, parkingZones, random, vehicleCanParkAtCharger)
 //    takeBestByRanking(destinationUTM, valueOfTime, parkingDuration, found, utilityFunction, distanceFunction)
     takeBestBySampling(
       found,
@@ -109,7 +110,11 @@ object ParkingZoneSearch {
       parkingType         <- parkingTypes
       parkingZoneIds      <- parkingTypesSubtree.get(parkingType).toList
       parkingZoneId       <- parkingZoneIds
-      if parkingZones(parkingZoneId).stallsAvailable > 0 && canThisCarParkHere(parkingZones(parkingZoneId), parkingType, vehicleCanParkAtCharger)
+      if parkingZones(parkingZoneId).stallsAvailable > 0 && canThisCarParkHere(
+        parkingZones(parkingZoneId),
+        parkingType,
+        vehicleCanParkAtCharger
+      )
     } yield {
       // get the zone
       Try {
