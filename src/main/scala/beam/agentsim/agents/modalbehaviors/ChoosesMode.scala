@@ -57,14 +57,18 @@ trait ChoosesMode {
   def boundingBox: Envelope
 
   def currentTourBeamVehicle: Option[BeamVehicle] =
-    stateData.asInstanceOf[ChoosesModeData].personData.currentTourPersonalVehicle match {
-      case Some(personalVehicle) =>
-        Option(
-          beamVehicles(personalVehicle)
-            .asInstanceOf[ActualVehicle]
-            .vehicle
-        )
-      case _ => None
+    if (stateData.isInstanceOf[ChoosesModeData]) {
+      stateData.asInstanceOf[ChoosesModeData].personData.currentTourPersonalVehicle match {
+        case Some(personalVehicle) =>
+          Option(
+            beamVehicles(personalVehicle)
+              .asInstanceOf[ActualVehicle]
+              .vehicle
+          )
+        case _ => None
+      }
+    } else {
+      None
     }
 
   onTransition {
