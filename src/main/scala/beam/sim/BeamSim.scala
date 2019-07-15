@@ -239,6 +239,11 @@ class BeamSim @Inject()(
         agentSimToPhysSimPlanConverter.startPhysSim(event)
       }
 
+      val multiPhysSimActor: ActorRef = actorSystem.actorOf(MultiPhysSim.props(beamServices))
+      multiPhysSimActor ! MultiPhysSim.StartMultiPhysSim
+      val r = Await.result(multiPhysSimActor ? MultiPhysSim.WaitToFinish, Duration.Inf)
+      logger.info(s"Got reply from WaitToFinish: ${r}")
+
       // executing code blocks parallel
       Await.result(Future.sequence(List(outputGraphsFuture, physsimFuture)), Duration.Inf)
     }

@@ -145,8 +145,8 @@ public class AgentSimToPhysSimPlanConverter implements BasicEventHandler, Metric
             boolean eventsForFullVersionOfVia = beamConfig.beam().physsim().eventsForFullVersionOfVia();
             String fileName = controlerIO.getIterationFilename(iterationNumber, "physSimEvents.xml.gz");
            // DON't merge to DEVELOP!!!
-           // eventsWriterXML = new EventWriterXML_viaCompatible(fileName, eventsForFullVersionOfVia , eventsSampling);
-           // jdeqsimEvents.addHandler(eventsWriterXML);
+            eventsWriterXML = new EventWriterXML_viaCompatible(fileName, eventsForFullVersionOfVia , eventsSampling);
+            jdeqsimEvents.addHandler(eventsWriterXML);
         }
 
 
