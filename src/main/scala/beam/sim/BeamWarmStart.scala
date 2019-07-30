@@ -3,7 +3,10 @@ package beam.sim
 import java.io.{File, FileNotFoundException}
 import java.nio.file.{Files, Paths}
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicReference
+
+import scala.collection.concurrent.TrieMap
+import scala.compat.java8.StreamConverters._
+import scala.util.Try
 
 import akka.actor.ActorRef
 import beam.router.BeamRouter.{UpdateTravelTimeLocal, UpdateTravelTimeRemote}
@@ -13,13 +16,11 @@ import beam.utils.FileUtils.downloadFile
 import beam.utils.TravelTimeCalculatorHelper
 import beam.utils.UnzipUtility._
 import com.typesafe.scalalogging.LazyLogging
-import org.apache.commons.io.FileUtils.getTempDirectoryPath
 import org.apache.commons.io.FilenameUtils.{getBaseName, getExtension, getName}
+import org.apache.commons.io.FileUtils.getTempDirectoryPath
 import org.matsim.api.core.v01.Scenario
 import org.matsim.core.config.groups.TravelTimeCalculatorConfigGroup
 import org.matsim.core.router.util.TravelTime
-import scala.compat.java8.StreamConverters._
-import scala.util.Try
 
 class BeamWarmStart private (beamConfig: BeamConfig) extends LazyLogging {
   val isWarmMode: Boolean = beamConfig.beam.warmStart.enabled
@@ -178,16 +179,13 @@ class BeamWarmStart private (beamConfig: BeamConfig) extends LazyLogging {
 
 object BeamWarmStart extends LazyLogging {
 
-  private val reference = new AtomicReference[BeamWarmStart]()
+  private val instancePerPath = TrieMap.empty[String, BeamWarmStart]
 
   def apply(beamConfig: BeamConfig): BeamWarmStart = {
-    reference.updateAndGet { current =>
-      if (current == null) {
-        new BeamWarmStart(beamConfig)
-      } else {
-        current
-      }
-    }
+    val path = beamConfig.beam.warmStart.path
+    instancePerPath.getOrElseUpdate(path, {
+      new BeamWarmStart(beamConfig)
+    })
   }
 
   def updateRemoteRouter(scenario: Scenario, travelTime: TravelTime, maxHour: Int, beamRouter: ActorRef): Unit = {
