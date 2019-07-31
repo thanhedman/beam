@@ -4,29 +4,33 @@ import beam.agentsim.agents.choice.logit
 import beam.agentsim.agents.choice.logit._
 import beam.agentsim.agents.choice.mode.ModeChoiceMultinomialLogit.ModeCostTimeTransfer
 import beam.agentsim.agents.modalbehaviors.ModeChoiceCalculator
+import beam.agentsim.agents.modalbehaviors.ModeChoiceCalculator._
+import beam.agentsim.events.ModeChoiceOccurred
 import beam.router.Modes.BeamMode
 import beam.router.Modes.BeamMode._
 import beam.router.model.{EmbodiedBeamLeg, EmbodiedBeamTrip}
 import beam.sim.BeamServices
+import beam.sim.config.BeamConfig
 import beam.sim.config.BeamConfig.Beam.Agentsim.Agents
 import beam.sim.config.BeamConfig.Beam.Agentsim.Agents.ModalBehaviors
 import beam.sim.population.AttributesOfIndividual
 import beam.utils.logging.ExponentialLazyLogging
 import org.matsim.api.core.v01.Id
 import org.matsim.api.core.v01.population.{Activity, Person}
+import org.matsim.core.api.experimental.events.EventsManager
 import org.matsim.vehicles.Vehicle
-import beam.agentsim.agents.modalbehaviors.ModeChoiceCalculator._
-import beam.sim.config.BeamConfig
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
-import scala.util.Random
 
 /**
   * BEAM
   */
-class ModeChoiceMultinomialLogit(val beamServices: BeamServices, val model: MultinomialLogit[String, String])
-    extends ModeChoiceCalculator
+class ModeChoiceMultinomialLogit(
+  val beamServices: BeamServices,
+  val model: MultinomialLogit[String, String],
+  val eventsManager: EventsManager
+) extends ModeChoiceCalculator
     with ExponentialLazyLogging {
 
   override lazy val beamConfig: BeamConfig = beamServices.beamConfig
@@ -62,9 +66,9 @@ class ModeChoiceMultinomialLogit(val beamServices: BeamServices, val model: Mult
         (mct.mode.value, theParams ++ transferParam)
       }.toMap
 
-      val chosenModeOpt = {
-        model.sampleAlternative(inputData, random)
-      }
+      val alternativesWithUtility = model.calcAlternativesWithUtility(inputData, random)
+      val chosenModeOpt = model.sampleAlternative(alternativesWithUtility, random)
+
       expectedMaximumUtility = model.getExpectedMaximumUtility(inputData).getOrElse(0)
 
       if (shouldLogDetails) {
@@ -91,7 +95,38 @@ class ModeChoiceMultinomialLogit(val beamServices: BeamServices, val model: Mult
           if (chosenModeCostTime.isEmpty || chosenModeCostTime.head.index < 0) {
             None
           } else {
-            Some(alternatives(chosenModeCostTime.head.index))
+            val chosenAlternative = alternatives(chosenModeCostTime.head.index)
+            person match {
+              case Some(p) =>
+                val altUtility = alternativesWithUtility
+                  .map(
+                    au =>
+                      au.alternative.toLowerCase() -> ModeChoiceOccurred
+                        .AltUtility(au.utility, au.expUtility)
+                  )
+                  .toMap
+
+                val altCostTimeTransfer = modeCostTimeTransfers
+                  .map(
+                    mctt =>
+                      mctt.mode.value.toLowerCase() -> ModeChoiceOccurred
+                        .AltCostTimeTransfer(mctt.cost, mctt.scaledTime, mctt.numTransfers)
+                  )
+                  .toMap
+
+                eventsManager.processEvent(
+                  ModeChoiceOccurred(
+                    p.getId.toString,
+                    alternatives,
+                    altCostTimeTransfer,
+                    altUtility,
+                    chosenModeCostTime.head.index
+                  )
+                )
+              case _ =>
+            }
+
+            Some(chosenAlternative)
           }
         case None =>
           None

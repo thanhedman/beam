@@ -3,8 +3,10 @@ import java.io.File
 
 import beam.agentsim.agents.modalbehaviors.ModeChoiceCalculator
 import beam.sim.config.{BeamConfig, MatSimBeamConfigBuilder}
-import beam.sim.{BeamHelper, BeamScenario, BeamServices, BeamServicesImpl}
+import beam.sim.{BeamHelper, BeamScenario, BeamServices, BeamServicesImpl, LoggingEventsManager}
 import com.google.inject.Injector
+import org.matsim.core.api.experimental.events.EventsManager
+import org.matsim.core.config.Config
 import org.matsim.core.controler.OutputDirectoryHierarchy.OverwriteFileSetting
 import org.matsim.core.scenario.MutableScenario
 import org.scalatest.{BeforeAndAfterAll, Suite}
@@ -17,7 +19,7 @@ trait SimRunnerForTest extends BeamHelper with BeforeAndAfterAll { this: Suite =
 
   // Next things are pretty cheap in initialization, so let it be non-lazy
   val beamConfig = BeamConfig(config)
-  val matsimConfig = new MatSimBeamConfigBuilder(config).buildMatSimConf()
+  val matsimConfig: Config = new MatSimBeamConfigBuilder(config).buildMatSimConf()
   matsimConfig.controler.setOutputDirectory(outputDirPath)
   matsimConfig.controler.setOverwriteFileSetting(OverwriteFileSetting.overwriteExistingFiles)
 
@@ -25,6 +27,7 @@ trait SimRunnerForTest extends BeamHelper with BeforeAndAfterAll { this: Suite =
   var scenario: MutableScenario = _
   var injector: Injector = _
   var services: BeamServices = _
+  var eventsManager: EventsManager = _
 
   override protected def beforeAll(): Unit = {
     super.beforeAll()
@@ -32,9 +35,14 @@ trait SimRunnerForTest extends BeamHelper with BeforeAndAfterAll { this: Suite =
     scenario = buildScenarioFromMatsimConfig(matsimConfig, beamScenario)
     injector = buildInjector(config, beamConfig, scenario, beamScenario)
     services = new BeamServicesImpl(injector)
+
+    //TODO: there should be a better way
+    eventsManager = new LoggingEventsManager(matsimConfig)
+
     services.modeChoiceCalculatorFactory = ModeChoiceCalculator(
       services.beamConfig.beam.agentsim.agents.modalBehaviors.modeChoiceClass,
-      services
+      services,
+      eventsManager
     )
   }
 
