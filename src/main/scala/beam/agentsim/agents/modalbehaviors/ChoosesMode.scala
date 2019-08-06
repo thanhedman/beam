@@ -466,14 +466,16 @@ trait ChoosesMode {
         val accessLeg = driveTransitTrip.get.legs.view.takeWhile(!_.beamLeg.mode.isTransit).last.beamLeg
         val dest = accessLeg.travelPath.endPoint.loc
         val nextActEndTime = nextActivity(choosesModeData.personData).get.getEndTime
-        val duration = if(nextActEndTime.equals(Double.NegativeInfinity)){
-
+        val fixedNextActEndTime = if(nextActEndTime.equals(Double.NegativeInfinity)){
+          Time.parseTime(beamServices.beamConfig.matsim.modules.qsim.endTime)
+        }else{
+          nextActEndTime
         }
         val driveTransitRequestId = requestParkingCost(
           beamServices.geo.wgs2Utm(dest),
           "ParkAndRide",
           accessLeg.endTime,
-          nextActivity(choosesModeData.personData).get.getEndTime.toInt - accessLeg.endTime
+          fixedNextActEndTime.toInt - accessLeg.endTime
         )
         choosesModeData.copy(driveTransitParkingResponse = None, driveTransitParkingRequestId = driveTransitRequestId)
       } else {
@@ -640,7 +642,7 @@ trait ChoosesMode {
     val firstTravelTimes = leg.beamLeg.travelPath.linkTravelTime.take(indexFromBeg)
     val secondPathLinkIds = theLinkIds.takeRight(indexFromEnd + 1)
     val secondTravelTimes = leg.beamLeg.travelPath.linkTravelTime.takeRight(indexFromEnd + 1)
-    val secondDuration = Math.min(secondTravelTimes.tail.sum, leg.beamLeg.duration)
+    val secondDuration = Math.min(math.round(secondTravelTimes.tail.sum.toFloat), leg.beamLeg.duration)
     val firstDuration = leg.beamLeg.duration - secondDuration
     val secondDistance = Math.min(secondPathLinkIds.tail.map(lengthOfLink).sum, leg.beamLeg.travelPath.distanceInM)
     val firstPathEndpoint = SpaceTime(
@@ -651,12 +653,15 @@ trait ChoosesMode {
       linkIds = secondPathLinkIds,
       linkTravelTime = secondTravelTimes,
       startPoint = firstPathEndpoint,
+      endPoint =
+        leg.beamLeg.travelPath.endPoint.copy(time = (firstPathEndpoint.time + secondTravelTimes.tail.sum).toInt),
       distanceInM = secondDistance
     )
     val firstPath = leg.beamLeg.travelPath.copy(
       linkIds = theLinkIds.take(indexFromBeg),
       linkTravelTime = firstTravelTimes,
-      endPoint = firstPathEndpoint,
+      endPoint =
+        firstPathEndpoint.copy(time = (leg.beamLeg.travelPath.startPoint.time + firstTravelTimes.tail.sum).toInt),
       distanceInM = leg.beamLeg.travelPath.distanceInM - secondPath.distanceInM
     )
     val firstLeg = leg.copy(
@@ -1151,6 +1156,7 @@ object ChoosesMode {
     override def hasParkingBehaviors: Boolean = true
 
     override def geofence: Option[Geofence] = None
+    override def legStartsAt: Option[Int] = None
   }
 
   case class ChoosesModeResponsePlaceholders(
