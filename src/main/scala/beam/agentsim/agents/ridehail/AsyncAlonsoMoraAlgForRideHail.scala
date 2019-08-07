@@ -32,9 +32,6 @@ class AsyncAlonsoMoraAlgForRideHail(
 
   private def matchVehicleRequests(v: VehicleAndSchedule): (List[RTVGraphNode], List[(RTVGraphNode, RTVGraphNode)]) = {
     import scala.collection.mutable.{ListBuffer => MListBuffer}
-    if (v.getFreeSeats < 4) {
-      val i = 0
-    }
     val vertices = MListBuffer.empty[RTVGraphNode]
     val edges = MListBuffer.empty[(RTVGraphNode, RTVGraphNode)]
     val finalRequestsList = MListBuffer.empty[RideHailTrip]
