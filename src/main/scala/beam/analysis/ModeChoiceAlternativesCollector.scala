@@ -34,7 +34,7 @@ class ModeChoiceAlternativesCollector(beamServices: BeamServices) extends BasicE
 
   override def handleEvent(event: Event): Unit = {
     event match {
-      case mco: ModeChoiceOccurred if mco.alternatives(mco.chosenAlternativeIdx).tripClassifier == RIDE_HAIL_POOLED =>
+      case mco: ModeChoiceOccurred => //if mco.alternatives(mco.chosenAlternativeIdx).tripClassifier == RIDE_HAIL_POOLED =>
         val tripCategory = getTripCategory(mco.alternatives)
 
         mco.alternatives.zipWithIndex
@@ -43,6 +43,7 @@ class ModeChoiceAlternativesCollector(beamServices: BeamServices) extends BasicE
               val tripType = trip.tripClassifier.value.toLowerCase()
               (mco.modeCostTimeTransfers.get(tripType), mco.alternativesUtility.get(tripType)) match {
                 case (Some(tripCostTimeTransfer), Some(tripUtility)) =>
+                  val duration = trip.legs.map(_.beamLeg.duration).sum
                   trip.legs.foreach(
                     leg =>
                       writeAlternative(
@@ -52,6 +53,7 @@ class ModeChoiceAlternativesCollector(beamServices: BeamServices) extends BasicE
                         idx == mco.chosenAlternativeIdx,
                         tripCostTimeTransfer,
                         tripUtility,
+                        duration,
                         tripType,
                         leg,
                         tripCategory
@@ -74,6 +76,7 @@ class ModeChoiceAlternativesCollector(beamServices: BeamServices) extends BasicE
     wasChosen: Boolean,
     altCostTimeTransfer: ModeChoiceOccurred.AltCostTimeTransfer,
     altUtility: ModeChoiceOccurred.AltUtility,
+    tripDuration:Int,
     tripType: String,
     leg: EmbodiedBeamLeg,
     tripCategory: Int,
@@ -106,6 +109,7 @@ class ModeChoiceAlternativesCollector(beamServices: BeamServices) extends BasicE
         "altTransferCnt",
         "altUtility",
         "altExpUtility",
+        "altDuration",
         "vehicleMode",
         "vehicleType",
         "vehicleId",
@@ -127,6 +131,7 @@ class ModeChoiceAlternativesCollector(beamServices: BeamServices) extends BasicE
         altCostTimeTransfer.numTransfers,
         altUtility.utility,
         altUtility.expUtility,
+        tripDuration,
         leg.beamLeg.mode,
         vehicleType,
         leg.beamVehicleId,
@@ -164,6 +169,7 @@ class ModeChoiceAlternativesCollector(beamServices: BeamServices) extends BasicE
         "altTransferCnt",
         "altUtility",
         "altExpUtility",
+        "altDuration",
         "vehicleMode",
         "vehicleType",
         "vehicleId",
