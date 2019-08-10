@@ -166,7 +166,8 @@ class AlonsoMoraPoolingAlgForRideHailSpec
 
 object AlonsoMoraPoolingAlgForRideHailSpec {
 
-  def scenario1()(implicit
+  def scenario1()(
+    implicit
     skimmer: BeamSkimmer,
     services: BeamServices,
     beamScenario: BeamScenario,
@@ -213,11 +214,12 @@ object AlonsoMoraPoolingAlgForRideHailSpec {
     (List(v1, v2), List(p1Req, p2Req, p3Req, p4Req))
   }
 
-  def scenarioGeoFence()(implicit
-                         skimmer: BeamSkimmer,
-                         services: BeamServices,
-                         beamScenario: BeamScenario,
-                         mockActorRef: ActorRef
+  def scenarioGeoFence()(
+    implicit
+    skimmer: BeamSkimmer,
+    services: BeamServices,
+    beamScenario: BeamScenario,
+    mockActorRef: ActorRef
   ): (List[VehicleAndSchedule], List[CustomerRequest]) = {
     import scala.concurrent.duration._
     val gf = Geofence(10000, 10000, 13400)
