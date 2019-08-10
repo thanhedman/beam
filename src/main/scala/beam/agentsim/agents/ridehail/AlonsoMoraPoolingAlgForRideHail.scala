@@ -28,18 +28,18 @@ class AlonsoMoraPoolingAlgForRideHail(
   skimmer: BeamSkimmer
 ) {
 
-  val solutionSpaceSizePerVehicle =
+  var solutionSpaceSizePerVehicle =
     beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.solutionSpaceSizePerVehicle
 
-  val waitingTimeInSec =
+  var waitingTimeInSec =
     beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.waitingTimeInSec
 
-  val travelTimeDelayAsFraction =
+  var travelTimeDelayAsFraction =
     beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.travelTimeDelayAsFraction
-
+  val rvG = RVGraph(classOf[RideHailTrip])
+  val rTvG = RTVGraph(classOf[DefaultEdge])
   // Request Vehicle Graph
-  private def pairwiseRVGraph: RVGraph = {
-    val rvG = RVGraph(classOf[RideHailTrip])
+  private def pairwiseRVGraph: Unit = {
     for {
       r1: CustomerRequest <- spatialDemand.values().asScala
       r2: CustomerRequest <- spatialDemand
@@ -76,12 +76,10 @@ class AlonsoMoraPoolingAlgForRideHail(
         rvG.addEdge(v, r, RideHailTrip(List(r), schedule))
       }
     }
-    rvG
   }
 
   // Request Trip Vehicle Graph
-  private def rTVGraph(rvG: RVGraph): RTVGraph = {
-    val rTvG = RTVGraph(classOf[DefaultEdge])
+  private def rTVGraph(): Unit = {
     supply.withFilter(x => rvG.containsVertex(x)).foreach { v =>
       rTvG.addVertex(v)
 
@@ -142,13 +140,10 @@ class AlonsoMoraPoolingAlgForRideHail(
         }
       }
     }
-
-    rTvG
   }
 
   // a greedy assignment using a cost function
-  protected def matchAndAssign(tick: Int): List[(RideHailTrip, VehicleAndSchedule, Double)] = {
-    val rTvG = rTVGraph(pairwiseRVGraph)
+  def matchAndAssign(tick: Int): List[(RideHailTrip, VehicleAndSchedule, Double)] = {
     val V: Int = supply.foldLeft(0) { case (maxCapacity, v) => Math max (maxCapacity, v.getFreeSeats) }
     greedyAssignment(rTvG, V, solutionSpaceSizePerVehicle)
   }

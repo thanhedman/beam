@@ -11,7 +11,7 @@ import beam.agentsim.agents.{Dropoff, MobilityRequestType, Pickup}
 import beam.router.BeamSkimmer
 import beam.sim.common.GeoUtilsImpl
 import beam.sim.config.BeamExecutionConfig
-import beam.sim.{BeamHelper, BeamScenario, Geofence}
+import beam.sim.{BeamHelper, BeamScenario, BeamServices, Geofence}
 import beam.utils.TestConfigUtils.testConfig
 import com.typesafe.config.ConfigFactory
 import com.vividsolutions.jts.geom.Envelope
@@ -53,7 +53,7 @@ class AlonsoMoraPoolingAlgForRideHailSpec
   implicit lazy val beamScenario = loadScenario(beamExecConfig.beamConfig)
   lazy val scenario = buildScenarioFromMatsimConfig(beamExecConfig.matsimConfig, beamScenario)
   lazy val injector = buildInjector(system.settings.config, beamExecConfig.beamConfig, scenario, beamScenario)
-  lazy val services = buildBeamServices(injector, scenario)
+  implicit lazy val services = buildBeamServices(injector, scenario)
 
   describe("AlonsoMoraPoolingAlgForRideHail") {
     it("Creates a consistent plan") {
@@ -66,12 +66,17 @@ class AlonsoMoraPoolingAlgForRideHailSpec
         new AlonsoMoraPoolingAlgForRideHail(
           AlonsoMoraPoolingAlgForRideHailSpec.demandSpatialIndex(sc._2),
           sc._1,
-          Map[MobilityRequestType, Double]((Pickup, 6 * 60), (Dropoff, 10 * 60)),
-          maxRequestsPerVehicle = 1000,
-          services
+          services,
+          skimmer
         )
 
-      val rvGraph: RVGraph = alg.pairwiseRVGraph
+      val assignment = alg.matchAndAssign(0)
+      for (row <- assignment) {
+        //        assert(row._1.getId == "trip:[p1] -> [p4] -> " || row._1.getId == "trip:[p3] -> ")
+        assert(row._2.getId == "v2" || row._2.getId == "v1")
+      }
+
+      val rvGraph: RVGraph = alg.rvG
       for (e <- rvGraph.edgeSet.asScala) {
         rvGraph.getEdgeSource(e).getId match {
           case "p1" =>
@@ -109,8 +114,7 @@ class AlonsoMoraPoolingAlgForRideHailSpec
         }
       }
 
-      val rtvGraph = alg.rTVGraph(rvGraph, services)
-
+      val rtvGraph = alg.rTvG
       for (v <- rtvGraph.vertexSet().asScala.filter(_.isInstanceOf[RideHailTrip])) {
         v.getId match {
           case "trip:[p3] -> " =>
@@ -155,13 +159,6 @@ class AlonsoMoraPoolingAlgForRideHailSpec
           case _ =>
         }
       }
-
-      val assignment = alg.greedyAssignment(rtvGraph)
-
-      for (row <- assignment) {
-//        assert(row._1.getId == "trip:[p1] -> [p4] -> " || row._1.getId == "trip:[p3] -> ")
-        assert(row._2.getId == "v2" || row._2.getId == "v1")
-      }
     }
   }
 
@@ -169,8 +166,9 @@ class AlonsoMoraPoolingAlgForRideHailSpec
 
 object AlonsoMoraPoolingAlgForRideHailSpec {
 
-  def scenario1(
-    implicit skimmer: BeamSkimmer,
+  def scenario1()(implicit
+    skimmer: BeamSkimmer,
+    services: BeamServices,
     beamScenario: BeamScenario,
     mockActorRef: ActorRef
   ): (List[VehicleAndSchedule], List[CustomerRequest]) = {
@@ -185,36 +183,41 @@ object AlonsoMoraPoolingAlgForRideHailSpec {
         makeVehPersonId("p1"),
         new Coord(1000, 2000),
         8.hours.toSeconds.toInt,
-        new Coord(18000, 19000)
+        new Coord(18000, 19000),
+        services
       )
     val p4Req: CustomerRequest =
       createPersonRequest(
         makeVehPersonId("p4"),
         new Coord(2000, 1000),
         (8.hours.toSeconds + 5.minutes.toSeconds).toInt,
-        new Coord(20000, 18000)
+        new Coord(20000, 18000),
+        services
       )
     val p2Req: CustomerRequest =
       createPersonRequest(
         makeVehPersonId("p2"),
         new Coord(3000, 3000),
         (8.hours.toSeconds + 1.minutes.toSeconds).toInt,
-        new Coord(19000, 18000)
+        new Coord(19000, 18000),
+        services
       )
     val p3Req: CustomerRequest =
       createPersonRequest(
         makeVehPersonId("p3"),
         new Coord(4000, 4000),
         (8.hours.toSeconds + 2.minutes.toSeconds).toInt,
-        new Coord(21000, 20000)
+        new Coord(21000, 20000),
+        services
       )
     (List(v1, v2), List(p1Req, p2Req, p3Req, p4Req))
   }
 
-  def scenarioGeoFence(
-    implicit skimmer: BeamSkimmer,
-    beamScenario: BeamScenario,
-    mockActorRef: ActorRef
+  def scenarioGeoFence()(implicit
+                         skimmer: BeamSkimmer,
+                         services: BeamServices,
+                         beamScenario: BeamScenario,
+                         mockActorRef: ActorRef
   ): (List[VehicleAndSchedule], List[CustomerRequest]) = {
     import scala.concurrent.duration._
     val gf = Geofence(10000, 10000, 13400)
@@ -228,28 +231,32 @@ object AlonsoMoraPoolingAlgForRideHailSpec {
         makeVehPersonId("p1"),
         new Coord(1000, 2000),
         8.hours.toSeconds.toInt,
-        new Coord(18000, 19000)
+        new Coord(18000, 19000),
+        services
       )
     val p4Req: CustomerRequest =
       createPersonRequest(
         makeVehPersonId("p4"),
         new Coord(2000, 1000),
         (8.hours.toSeconds + 5.minutes.toSeconds).toInt,
-        new Coord(20000, 18000)
+        new Coord(20000, 18000),
+        services
       )
     val p2Req: CustomerRequest =
       createPersonRequest(
         makeVehPersonId("p2"),
         new Coord(3000, 3000),
         (8.hours.toSeconds + 1.minutes.toSeconds).toInt,
-        new Coord(19000, 18000)
+        new Coord(19000, 18000),
+        services
       )
     val p3Req: CustomerRequest =
       createPersonRequest(
         makeVehPersonId("p3"),
         new Coord(4000, 4000),
         (8.hours.toSeconds + 2.minutes.toSeconds).toInt,
-        new Coord(21000, 20000)
+        new Coord(21000, 20000),
+        services
       )
     (List(v1, v2), List(p1Req, p2Req, p3Req, p4Req))
   }
