@@ -34,7 +34,7 @@ class LoadOverTimeAnalysis extends GraphAnalysis with ExponentialLazyLogging {
           } else "Personal"
         val energyInJoules = refuelSessionEvent.energyInJoules
         val sessionDuration = refuelSessionEvent.sessionDuration
-        val currentEventAverageLoad = if(sessionDuration != 0) energyInJoules / sessionDuration / 1000 else 0
+        val currentEventAverageLoad = if (sessionDuration != 0) energyInJoules / sessionDuration / 1000 else 0
         vehicleTypeToHourlyLoad.get(loadVehicleType) match {
           case Some(hourlyLoadMap) =>
             hourlyLoadMap.get(hourOfEvent) match {
@@ -78,11 +78,14 @@ class LoadOverTimeAnalysis extends GraphAnalysis with ExponentialLazyLogging {
     createGraph(loadDataset, loadImageFile, "Load By User Type")
 
     loadDataset = createLoadDataset(chargerTypeToHourlyLoad)
-    loadImageFile = outputDirectoryHiearchy.getIterationFilename(event.getIteration, s"${loadOverTimeFileBaseName}ByChargerType.png")
+    loadImageFile =
+      outputDirectoryHiearchy.getIterationFilename(event.getIteration, s"${loadOverTimeFileBaseName}ByChargerType.png")
     createGraph(loadDataset, loadImageFile, "Load By Charger Type")
   }
 
-  private def createLoadDataset(hourlyLoadData: mutable.Map[String, mutable.Map[Int, (Double, Int)]]): CategoryDataset = {
+  private def createLoadDataset(
+    hourlyLoadData: mutable.Map[String, mutable.Map[Int, (Double, Int)]]
+  ): CategoryDataset = {
     val dataset = new DefaultCategoryDataset
     hourlyLoadData.foreach {
       case (loadType, hourlyLoadMap) => {
@@ -96,7 +99,16 @@ class LoadOverTimeAnalysis extends GraphAnalysis with ExponentialLazyLogging {
 
   private def createGraph(dataSet: CategoryDataset, graphImageFile: String, title: String): Unit = {
     val chart =
-      ChartFactory.createLineChart(title, "Hour", "Avg. Power (kW)", dataSet, PlotOrientation.VERTICAL, true, true, false)
+      ChartFactory.createLineChart(
+        title,
+        "Hour",
+        "Avg. Power (kW)",
+        dataSet,
+        PlotOrientation.VERTICAL,
+        true,
+        true,
+        false
+      )
 
     GraphUtils.saveJFreeChartAsPNG(
       chart,
