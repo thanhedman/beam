@@ -34,7 +34,8 @@ public class StatsFactory {
         ParkingType,
         ActivityType,
         VehicleChargingAnalysis,
-        LoadOverTimeAnalysis
+        LoadOverTimeAnalysis,
+        RideHailSummary
     }
 
     private final BeamConfig beamConfig;
@@ -118,6 +119,8 @@ public class StatsFactory {
                 return new VehicleChargingAnalysis();
             case LoadOverTimeAnalysis:
                 return new LoadOverTimeAnalysis();
+            case RideHailSummary:
+                return new RideHailSummary();
             default:
                 return null;
         }
