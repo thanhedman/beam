@@ -23,6 +23,8 @@ import beam.router.model.{EmbodiedBeamLeg, EmbodiedBeamTrip}
 import beam.router.osm.TollCalculator
 import beam.sim.common.Range
 import beam.sim.{BeamScenario, BeamServices, Geofence}
+import beam.utils.logging.LogActorState
+import beam.utils.reflection.ReflectionUtils
 import com.conveyal.r5.transit.TransportNetwork
 import org.matsim.api.core.v01.events.{PersonDepartureEvent, PersonEntersVehicleEvent}
 import org.matsim.api.core.v01.{Coord, Id}
@@ -143,8 +145,6 @@ object RideHailAgent {
   case object Offline extends BeamAgentState
   case object OfflineInterrupted extends BeamAgentState
 
-  case object PendingOfflineForCharging extends BeamAgentState
-
   case object IdleInterrupted extends BeamAgentState
 
   case class StartShiftTrigger(tick: Int) extends Trigger
@@ -197,7 +197,7 @@ class RideHailAgent(
 
     case ev @ Event(TriggerWithId(StartLegTrigger(_, _), triggerId), data) =>
       log.debug(
-        "myUnhandled state({}): stashing StartLegTrigger probably because interrupt was received while in WaitinToDrive before getting this trigger: {}",
+        "myUnhandled state({}): stashing StartLegTrigger probably because interrupt was received while in WaitingToDrive before getting this trigger: {}",
         stateName,
         ev
       )
@@ -226,6 +226,11 @@ class RideHailAgent(
           scheduler ! CompletionNotice(triggerId, Vector())
         case None =>
       }
+      stay
+
+    case Event(LogActorState, _) =>
+      ReflectionUtils.logFields(log, this, 0)
+      log.info(getLog.map(entry => (entry.stateName, entry.event, entry.stateData)).mkString("\n\t"))
       stay
 
     case event @ Event(_, _) =>
@@ -284,7 +289,7 @@ class RideHailAgent(
   when(Offline) {
 
     case ev @ Event(ParkingInquiryResponse(stall, _), _) =>
-      log.debug("state(RideHailAgent.OfflineForCharging.ParkingInquiryResponse): {}", ev)
+      log.debug("state(RideHailAgent.Offline.ParkingInquiryResponse): {}", ev)
       vehicle.useParkingStall(stall)
       val (tick, triggerId) = releaseTickAndTriggerId()
       eventsManager.processEvent(
@@ -320,10 +325,11 @@ class RideHailAgent(
       handleNotifyVehicleResourceIdleReply(reply, data)
     case ev @ Event(TriggerWithId(StartRefuelSessionTrigger(tick), triggerId), _) =>
       updateLatestObservedTick(tick)
-      log.debug("state(RideHailAgent.OfflineForCharging.StartRefuelSessionTrigger): {}", ev)
+      log.debug("state(RideHailAgent.Offline.StartRefuelSessionTrigger): {}", ev)
       if (vehicle.isCAV) {
         handleStartRefuel(tick, triggerId)
       } else {
+        holdTickAndTriggerId(tick, triggerId)
         requestParkingStall()
       }
       stay
@@ -336,6 +342,12 @@ class RideHailAgent(
       holdTickAndTriggerId(tick, triggerId)
       handleEndRefuel(energyInJoules, tick, sessionStart.toInt)
       goto(Idle)
+    case ev @ Event(TriggerWithId(StartLegTrigger(_, _), triggerId), data) =>
+      log.warning(
+        "state(RideHailingAgent.Offline.StartLegTrigger) this should be avoided instead of what I'm about to do which is ignore and complete this trigger: {} ",
+        ev
+      )
+      stay replying CompletionNotice(triggerId)
   }
   when(OfflineInterrupted) {
     case Event(Resume, _) =>
@@ -354,6 +366,9 @@ class RideHailAgent(
       stash()
       stay()
     case ev @ Event(TriggerWithId(EndRefuelSessionTrigger(_, _, _, _), _), _) =>
+      stash()
+      stay()
+    case ev @ Event(ParkingInquiryResponse(_, _), _) =>
       stash()
       stay()
   }
@@ -485,6 +500,10 @@ class RideHailAgent(
       log.debug("state(RideHailingAgent.WaitingToDriveInterrupted): {}", ev)
       stash()
       goto(IdleInterrupted)
+    case ev @ Event(TriggerWithId(StartRefuelSessionTrigger(_), _), _) =>
+      log.debug("state(RideHailingAgent.StartRefuelSessionTrigger): {}", ev)
+      stash()
+      goto(OfflineInterrupted)
   }
 
   when(PassengerScheduleEmpty) {
