@@ -32,8 +32,8 @@ class AlonsoMoraPoolingAlgForRideHail(
   // Methods below should be kept as def (instead of val) to allow automatic value updating
   private def alonsoMora: AllocationManager.AlonsoMora =
     beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora
-  private def solutionSpaceSizePerVehicle: Int = alonsoMora.solutionSpaceSizePerVehicle
-  private def waitingTimeInSec: Int = alonsoMora.waitingTimeInSec
+  private def solutionSpaceSizePerVehicle: Int = alonsoMora.maxSizeOfSolutionSpacePerVehicle
+  private def waitingTimeInSec: Int = alonsoMora.maxWaitTimeInSec
 
   val rvG = RVGraph(classOf[RideHailTrip])
   val rTvG = RTVGraph(classOf[DefaultEdge])
@@ -274,8 +274,8 @@ object AlonsoMoraPoolingAlgForRideHail {
   ): CustomerRequest = {
     val alonsoMora: AllocationManager.AlonsoMora =
       beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora
-    val waitingTimeInSec = alonsoMora.waitingTimeInSec
-    val travelTimeDelayAsFraction = alonsoMora.travelTimeDelayAsFraction
+    val waitingTimeInSec = alonsoMora.maxWaitTimeInSec
+    val travelTimeDelayAsFraction = alonsoMora.maxTravelTimeDelayAsFraction
 
     val p1Act1: Activity = PopulationUtils.createActivityFromCoord(s"${vehiclePersonId.personId}Act1", src)
     p1Act1.setEndTime(departureTime)
@@ -337,8 +337,8 @@ object AlonsoMoraPoolingAlgForRideHail {
 
     val alonsoMora: AllocationManager.AlonsoMora =
       beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora
-    val waitingTimeInSec = alonsoMora.waitingTimeInSec
-    val travelTimeDelayAsFraction = alonsoMora.travelTimeDelayAsFraction
+    val waitingTimeInSec = alonsoMora.maxWaitTimeInSec
+    val travelTimeDelayAsFraction = alonsoMora.maxTravelTimeDelayAsFraction
 
     veh.currentPassengerSchedule.foreach {
       _.schedule.foreach {

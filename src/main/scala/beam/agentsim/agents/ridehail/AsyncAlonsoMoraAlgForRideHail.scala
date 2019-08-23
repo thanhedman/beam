@@ -22,10 +22,13 @@ class AsyncAlonsoMoraAlgForRideHail(
 ) {
 
   private val solutionSpaceSizePerVehicle =
-    beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.solutionSpaceSizePerVehicle
+    beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.maxSizeOfSolutionSpacePerVehicle
 
   private val waitingTimeInSec =
-    beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.waitingTimeInSec
+    beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.maxWaitTimeInSec
+
+  private val boostRuntime =
+    beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.boostRuntime
 
   private def matchVehicleRequests(v: VehicleAndSchedule): (List[RTVGraphNode], List[(RTVGraphNode, RTVGraphNode)]) = {
     import scala.collection.mutable.{ListBuffer => MListBuffer}
@@ -33,6 +36,11 @@ class AsyncAlonsoMoraAlgForRideHail(
     val edges = MListBuffer.empty[(RTVGraphNode, RTVGraphNode)]
     val finalRequestsList = MListBuffer.empty[RideHailTrip]
     val center = v.getRequestWithCurrentVehiclePosition.activity.getCoord
+
+    var maxSolutionSpace = solutionSpaceSizePerVehicle
+    if(boostRuntime) {
+      maxSolutionSpace = solutionSpaceSizePerVehicle - v.getNoPassengers
+    }
 
     val searchRadius = waitingTimeInSec * BeamSkimmer.speedMeterPerSec(BeamMode.CAV)
     val requests = v.geofence match {
