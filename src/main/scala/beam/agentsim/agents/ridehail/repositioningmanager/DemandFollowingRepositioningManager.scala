@@ -2,6 +2,7 @@ package beam.agentsim.agents.ridehail.repositioningmanager
 
 import beam.agentsim.agents.ridehail.RideHailManager
 import beam.router.BeamRouter.Location
+import beam.router.Modes.BeamMode.CAR
 import beam.sim.BeamServices
 import beam.utils.{ActivitySegment, ProfilingUtils}
 import com.typesafe.scalalogging.LazyLogging
@@ -30,22 +31,23 @@ class DemandFollowingRepositioningManager(val beamServices: BeamServices, val ri
     extends RepositioningManager(beamServices, rideHailManager)
     with LazyLogging {
 
-  val cfg =
-    beamServices.beamConfig.beam.agentsim.agents.rideHail.repositioningManager.demandFollowingRepositioningManager
+  private val activitySegment: ActivitySegment = {
+    val intervalSize: Int =
+      rideHailManager.beamServices.beamConfig.beam.agentsim.agents.rideHail.repositioningManager.timeout
 
-  val intervalSize: Int =
-    rideHailManager.beamServices.beamConfig.beam.agentsim.agents.rideHail.repositioningManager.timeout
-
-  val activitySegment: ActivitySegment =
     ProfilingUtils.timed(s"Build ActivitySegment with intervalSize $intervalSize", x => logger.info(x)) {
       ActivitySegment(rideHailManager.beamServices.matsimServices.getScenario, intervalSize)
     }
+  }
 
   // When we have all activities, we can make `sensitivityOfRepositioningToDemand` in the range from [0, 1] to make it easer to calibrate
   // If sensitivityOfRepositioningToDemand = 1, it means all vehicles reposition all the time
   // sensitivityOfRepositioningToDemand = 0, means no one reposition
+  private val cfg =
+    beamServices.beamConfig.beam.agentsim.agents.rideHail.repositioningManager.demandFollowingRepositioningManager
+
   val sensitivityOfRepositioningToDemand: Double = cfg.sensitivityOfRepositioningToDemand
-  val numberOfClustersForDemand = cfg.numberOfClustersForDemand
+  val numberOfClustersForDemand: Int = cfg.numberOfClustersForDemand
   val rndGen: Random = new Random(beamServices.beamConfig.matsim.modules.global.randomSeed)
   val rng = new MersenneTwister(beamServices.beamConfig.matsim.modules.global.randomSeed) // Random.org
 
@@ -85,14 +87,30 @@ class DemandFollowingRepositioningManager(val beamServices: BeamServices, val ri
       val newPositions = ProfilingUtils.timed(s"Find where to repos from ${wantToRepos.size}", x => logger.debug(x)) {
         wantToRepos.flatMap { rha =>
           findWhereToReposition(tick, rha.currentLocationUTM.loc, rha.vehicleId).map { loc =>
-            rha.vehicleId -> loc
+            rha -> loc
           }
         }
       }
       logger.debug(
         s"nonRepositioningIdleVehicles: ${nonRepositioningIdleVehicles.size}, wantToRepos: ${wantToRepos.size}, newPositions: ${newPositions.size}"
       )
-      newPositions.toVector
+      // Filter out vehicles that don't have enough range
+      newPositions
+        .filter { vehAndNewLoc =>
+          rideHailManager.beamSkimmer
+            .getTimeDistanceAndCost(
+              vehAndNewLoc._1.currentLocationUTM.loc,
+              vehAndNewLoc._2,
+              tick,
+              CAR,
+              vehAndNewLoc._1.vehicleType.id
+            )
+            .distance <= rideHailManager.vehicleManager
+            .getVehicleState(vehAndNewLoc._1.vehicleId)
+            .totalRemainingRange - rideHailManager.beamScenario.beamConfig.beam.agentsim.agents.rideHail.rangeBufferForDispatchInMeters
+        }
+        .map(tup => (tup._1.vehicleId, tup._2))
+        .toVector
     } else {
       Vector.empty
     }
@@ -113,17 +131,23 @@ class DemandFollowingRepositioningManager(val beamServices: BeamServices, val ri
   private def findWhereToReposition(tick: Int, vehicleLocation: Coord, vehicleId: Id[Vehicle]): Option[Coord] = {
     val currentHour = tick / 3600
     val nextHour = currentHour + 1
+    val fractionOfClosestClusters =
+      beamServices.beamConfig.beam.agentsim.agents.rideHail.repositioningManager.demandFollowingRepositioningManager.fractionOfClosestClustersToConsider
+
     hourToClusters.lift(nextHour).map { clusters =>
-      // We get top 5 closest clusters and randomly pick one of them.
+      val N: Int = Math.max(1, Math.round(clusters.length * fractionOfClosestClusters).toInt)
+
+      // We get top N closest clusters and randomly pick one of them.
       // The probability is proportional to the cluster size - meaning it is proportional to the demand, as higher demands as higher probability
-      val top5Closest = clusters.sortBy(x => beamServices.geo.distUTMInMeters(x.coord, vehicleLocation)).take(5)
-      val pmf = top5Closest.map { x =>
+      val topNClosest = clusters.sortBy(x => beamServices.geo.distUTMInMeters(x.coord, vehicleLocation)).take(N)
+      val pmf = topNClosest.map { x =>
         new CPair[ClusterInfo, java.lang.Double](x, x.size.toDouble)
       }.toList
+
       val distr = new EnumeratedDistribution[ClusterInfo](rng, pmf.asJava)
       val sampled = distr.sample()
       logger.debug(
-        s"tick $tick, currentHour: $currentHour, nextHour: $nextHour, vehicleId: $vehicleId, vehicleLocation: $vehicleLocation. Top 5 closest: ${top5Closest.toVector}, sampled: $sampled"
+        s"tick $tick, currentHour: $currentHour, nextHour: $nextHour, vehicleId: $vehicleId, vehicleLocation: $vehicleLocation. Top $N closest: ${topNClosest.toVector}, sampled: $sampled"
       )
       sampled.coord
     }

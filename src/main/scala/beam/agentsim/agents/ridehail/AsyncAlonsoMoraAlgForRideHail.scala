@@ -21,14 +21,11 @@ class AsyncAlonsoMoraAlgForRideHail(
   skimmer: BeamSkimmer
 ) {
 
-  var solutionSpaceSizePerVehicle =
+  private val solutionSpaceSizePerVehicle =
     beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.solutionSpaceSizePerVehicle
 
-  var waitingTimeInSec =
+  private val waitingTimeInSec =
     beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.waitingTimeInSec
-
-  var travelTimeDelayAsFraction =
-    beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.travelTimeDelayAsFraction
 
   private def matchVehicleRequests(v: VehicleAndSchedule): (List[RTVGraphNode], List[(RTVGraphNode, RTVGraphNode)]) = {
     import scala.collection.mutable.{ListBuffer => MListBuffer}
@@ -36,6 +33,7 @@ class AsyncAlonsoMoraAlgForRideHail(
     val edges = MListBuffer.empty[(RTVGraphNode, RTVGraphNode)]
     val finalRequestsList = MListBuffer.empty[RideHailTrip]
     val center = v.getRequestWithCurrentVehiclePosition.activity.getCoord
+
     val searchRadius = waitingTimeInSec * BeamSkimmer.speedMeterPerSec(BeamMode.CAV)
     val requests = v.geofence match {
       case Some(gf) =>
@@ -56,7 +54,12 @@ class AsyncAlonsoMoraAlgForRideHail(
       .sortBy(x => GeoUtils.minkowskiDistFormula(center, x.pickup.activity.getCoord))
       .take(solutionSpaceSizePerVehicle) foreach (
       r =>
-        AlonsoMoraPoolingAlgForRideHail.getRidehailSchedule(v.schedule, List(r.pickup, r.dropoff), skimmer) match {
+        AlonsoMoraPoolingAlgForRideHail.getRidehailSchedule(
+          v.schedule,
+          List(r.pickup, r.dropoff),
+          v.vehicleRemainingRangeInMeters.toInt,
+          skimmer
+        ) match {
           case Some(schedule) =>
             val t = RideHailTrip(List(r), schedule)
             finalRequestsList append t
@@ -80,6 +83,7 @@ class AsyncAlonsoMoraAlgForRideHail(
           AlonsoMoraPoolingAlgForRideHail.getRidehailSchedule(
             v.schedule,
             (t1.requests ++ t2.requests).flatMap(x => List(x.pickup, x.dropoff)),
+            v.vehicleRemainingRangeInMeters.toInt,
             skimmer
           ) match {
             case Some(schedule) =>
