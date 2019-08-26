@@ -44,7 +44,7 @@ apply plugin: 'scalafmt'
 apply plugin: 'com.bmuschko.docker-java-application'
 
 group = 'beam'
-version = '0.8.4'
+version = '0.8.5'
 
 description = """"""
 
@@ -64,6 +64,12 @@ sourceSets.main.java.srcDirs = []
 
 sourceSets.test.java.srcDirs = []
 sourceSets.test.scala.srcDirs = ["src/test/scala", "src/test/java"]
+
+Properties properties = new Properties()
+def propertiesFile = project.rootProject.file('local.properties')
+if (propertiesFile.exists()) {
+	properties.load(propertiesFile.newDataInputStream())
+}
 
 sourceSets {
     main {
@@ -669,8 +675,8 @@ docker{
 
     registryCredentials {
         url = 'https://index.docker.io/v1/'
-        username = "rajnikant1234"
-        password = "Technical@123"
+        username = properties.getProperty('DOCKERHUB_USERNAME')
+        password = properties.getProperty('DOCKERHUB_PASSWORD')
     }
 
     javaApplication {
