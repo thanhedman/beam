@@ -44,7 +44,7 @@ apply plugin: 'scalafmt'
 apply plugin: 'com.bmuschko.docker-java-application'
 
 group = 'beam'
-version = '0.8.0'
+version = '0.8.4'
 
 description = """"""
 
@@ -116,6 +116,7 @@ dependencies {
 
     compile(group: 'com.github.LBNL-UCB-STI', name: 'beam-utilities', version: 'v0.2.4') {
         exclude group: 'com.github.LBNL-UCB-STI', module: 'r5'
+	exclude group: 'org.matsim', module: 'matsim'
     }
     
     ////////////////////////////
@@ -583,10 +584,10 @@ run {
     }
 
     doFirst() {
-        if (!project.file('build/aspectjweaver-1.8.10.jar').exists()) {
-            download {
-                src 'http://central.maven.org/maven2/org/aspectj/aspectjweaver/1.8.10/aspectjweaver-1.8.10.jar'
-                dest buildDir
+       if (!project.file('build/aspectjweaver-1.8.10.jar').exists()) {
+           download {
+               src 'http://central.maven.org/maven2/org/aspectj/aspectjweaver/1.8.10/aspectjweaver-1.8.10.jar'
+               dest buildDir
             }
         }
     }
@@ -668,19 +669,19 @@ docker{
 
     registryCredentials {
         url = 'https://index.docker.io/v1/'
-        username = System.getenv("DOCKER_USER")
-        password = System.getenv("DOCKER_PASSWORD")
+        username = "rajnikant1234"
+        password = "Technical@123"
     }
 
     javaApplication {
-        baseImage = 'continuumio/miniconda3'
+        baseImage = 'beammodel/miniconda3'
         maintainer = 'LBNL Beam Team'
         tag = "beammodel/beam:$version"
     }
 }
 
 dockerDistTar {
-    instruction 'RUN apt-get update && apt-get -y install openjdk-8-jdk && rm -rf /var/lib/apt/lists/*'
+    instruction 'RUN apt-get update'
     addFile 'test/', 'test/'
 }
 
