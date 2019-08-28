@@ -16,12 +16,9 @@ import org.matsim.api.core.v01.Id
 import org.matsim.api.core.v01.population.Activity
 import org.matsim.core.population.PopulationUtils
 import org.matsim.core.utils.collections.QuadTree
-import org.matsim.api.core.v01.population.Person
 import scala.collection.JavaConverters._
 import scala.collection.immutable.List
 import scala.collection.mutable.ListBuffer
-import scala.collection.immutable
-import scala.collection.mutable
 
 import beam.sim.config.BeamConfig.Beam.Agentsim.Agents.RideHail.AllocationManager
 
@@ -31,8 +28,6 @@ class AlonsoMoraPoolingAlgForRideHail(
   beamServices: BeamServices,
   skimmer: BeamSkimmer
 ) {
-
-  AlonsoMoraPoolingAlgForRideHail.alternativesCost = immutable.HashMap.empty[Id[Person], Double]
 
   // Methods below should be kept as def (instead of val) to allow automatic value updating
   private def alonsoMora: AllocationManager.AlonsoMora =
@@ -166,8 +161,6 @@ class AlonsoMoraPoolingAlgForRideHail(
 
 object AlonsoMoraPoolingAlgForRideHail {
 
-  var alternativesCost = immutable.HashMap.empty[Id[Person], Double]
-
   // a greedy assignment using a cost function
   def greedyAssignment(
     rTvG: RTVGraph,
@@ -228,10 +221,8 @@ object AlonsoMoraPoolingAlgForRideHail {
     schedule: List[MobilityRequest],
     newRequests: List[MobilityRequest],
     remainingVehicleRangeInMeters: Int,
-    skimmer: BeamSkimmer,
-    availableSeats: Int = 0
+    skimmer: BeamSkimmer
   ): Option[List[MobilityRequest]] = {
-    val alternativesCostTemp = mutable.HashMap.empty[Id[Person], Double]
     val newPoolingList = scala.collection.mutable.ListBuffer.empty[MobilityRequest]
     val reversedSchedule = schedule.reverse
     val sortedRequests = reversedSchedule.lastOption match {
@@ -258,24 +249,17 @@ object AlonsoMoraPoolingAlgForRideHail {
         newPoolingList.append(temp.head)
         temp.drop(1)
     }
-    val numCustomers = newRequests.size/2.0
     sortedRequests.foreach { curReq =>
       val prevReq = newPoolingList.lastOption.getOrElse(newPoolingList.last)
       val tdc = getTimeDistanceAndCost(prevReq, curReq, skimmer)
       val serviceTime = prevReq.serviceTime + tdc.time
       val serviceDistance = prevReq.serviceDistance + tdc.distance.toInt
-      if(!alternativesCostTemp.contains(curReq.person.get.personId)) {
-        val prevCost = AlonsoMoraPoolingAlgForRideHail.alternativesCost.getOrElse(curReq.person.get.personId, 0.0)
-        alternativesCostTemp.put(curReq.person.get.personId, prevCost + numCustomers/availableSeats)
-      }
-      val altcost = alternativesCostTemp(curReq.person.get.personId)
-      if (serviceTime <= curReq.upperBoundTime && serviceDistance <= remainingVehicleRangeInMeters && altcost <= 1.0) {
+      if (serviceTime <= curReq.upperBoundTime && serviceDistance <= remainingVehicleRangeInMeters) {
         newPoolingList.append(curReq.copy(serviceTime = serviceTime, serviceDistance = serviceDistance))
       } else {
         return None
       }
     }
-    AlonsoMoraPoolingAlgForRideHail.alternativesCost = AlonsoMoraPoolingAlgForRideHail.alternativesCost ++ alternativesCostTemp
     Some(newPoolingList.toList)
   }
 

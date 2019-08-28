@@ -58,8 +58,7 @@ class AsyncAlonsoMoraAlgForRideHail(
           v.schedule,
           List(r.pickup, r.dropoff),
           v.vehicleRemainingRangeInMeters.toInt,
-          skimmer,
-          v.getFreeSeats
+          skimmer
         ) match {
           case Some(schedule) =>
             val t = RideHailTrip(List(r), schedule)
@@ -85,8 +84,7 @@ class AsyncAlonsoMoraAlgForRideHail(
             v.schedule,
             (t1.requests ++ t2.requests).flatMap(x => List(x.pickup, x.dropoff)),
             v.vehicleRemainingRangeInMeters.toInt,
-            skimmer,
-            v.getFreeSeats
+            skimmer
           ) match {
             case Some(schedule) =>
               val t = RideHailTrip(t1.requests ++ t2.requests, schedule)
