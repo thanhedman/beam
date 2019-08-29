@@ -86,7 +86,7 @@ class AsyncAlonsoMoraAlgForRideHail(
         }
     )
     if (finalRequestsList.nonEmpty) {
-      val numPassengers = 2 + r.nextInt(v.getFreeSeats - 1)
+      val numPassengers = if(r.nextDouble() <= 0.5) v.getFreeSeats else Math.max(v.getFreeSeats - 1, 2)
       //val numPassengers = v.getFreeSeats
       for (k <- 2 to numPassengers) {
         val kRequestsList = MListBuffer.empty[RideHailTrip]
