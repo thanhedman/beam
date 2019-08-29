@@ -62,10 +62,10 @@ class AsyncAlonsoMoraAlgForRideHail(
         spatialDemand.getDisk(center.getX, center.getY, searchRadius).asScala.toList
     }
     requests = requests.sortBy(r => GeoUtils.minkowskiDistFormula(center, r.pickup.activity.getCoord))
-    if(requestWithCurrentVehiclePosition.tag == EnRoute) {
+    if (requestWithCurrentVehiclePosition.tag == EnRoute) {
       val i = v.schedule.indexWhere(_.tag == EnRoute)
       val nextTasks = v.schedule.slice(0, i)
-      requests = requests.filter(r => checkDistance(r.dropoff, nextTasks, searchRadius))
+      requests = requests.filter(r => AlonsoMoraPoolingAlgForRideHail.checkDistance(r.dropoff, nextTasks, searchRadius))
     }
     requests
       .take(solutionSpaceSizePerVehicle) foreach (
