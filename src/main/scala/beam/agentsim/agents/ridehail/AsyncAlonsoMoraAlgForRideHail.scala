@@ -65,7 +65,7 @@ class AsyncAlonsoMoraAlgForRideHail(
       customers = customers
         .filter(r => AlonsoMoraPoolingAlgForRideHail.checkDistance(r.dropoff, mainTasks, searchRadius))
         .sortBy(r => GeoUtils.minkowskiDistFormula(center, r.pickup.activity.getCoord))
-    } /*else {
+    } else {
       // if vehicle is empty, prioritize the destination of the current closest customers
       customers = customers.sortBy(r => GeoUtils.minkowskiDistFormula(center, r.pickup.activity.getCoord))
       var mainRequests = List(customers.head)
@@ -77,7 +77,7 @@ class AsyncAlonsoMoraAlgForRideHail(
         .filter(
           r => AlonsoMoraPoolingAlgForRideHail.checkDistance(r.dropoff, mainRequests.map(_.dropoff), searchRadius)
         )
-    }*/
+    }
 
     val potentialTrips = mutable.ListBuffer.empty[RideHailTrip]
     // consider solo rides as initial potential trips
