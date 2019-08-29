@@ -86,8 +86,8 @@ class AsyncAlonsoMoraAlgForRideHail(
         }
     )
     if (finalRequestsList.nonEmpty) {
-      //val numPassengers = 2 + r.nextInt(v.getFreeSeats - 1)
-      val numPassengers = v.getFreeSeats
+      val numPassengers = 2 + r.nextInt(v.getFreeSeats - 1)
+      //val numPassengers = v.getFreeSeats
       for (k <- 2 to numPassengers) {
         val kRequestsList = MListBuffer.empty[RideHailTrip]
         for {
