@@ -62,11 +62,11 @@ class AsyncAlonsoMoraAlgForRideHail(
         spatialDemand.getDisk(center.getX, center.getY, searchRadius).asScala.toList
     }
     requests = requests.sortBy(r => GeoUtils.minkowskiDistFormula(center, r.pickup.activity.getCoord))
-//    if(requestWithCurrentVehiclePosition.tag == EnRoute) {
-//      val i = v.schedule.indexWhere(_.tag == EnRoute)
-//      val nextTasks = v.schedule.slice(0, i)
-//      requests = requests.filter(r => checkDistance(r.dropoff, nextTasks, searchRadius))
-//    }
+    if(requestWithCurrentVehiclePosition.tag == EnRoute) {
+      val i = v.schedule.indexWhere(_.tag == EnRoute)
+      val nextTasks = v.schedule.slice(0, i)
+      requests = requests.filter(r => checkDistance(r.dropoff, nextTasks, searchRadius))
+    }
     requests
       .take(solutionSpaceSizePerVehicle) foreach (
       r =>
@@ -86,7 +86,8 @@ class AsyncAlonsoMoraAlgForRideHail(
         }
     )
     if (finalRequestsList.nonEmpty) {
-      val numPassengers = 2 + r.nextInt(v.getFreeSeats - 1)
+      //val numPassengers = 2 + r.nextInt(v.getFreeSeats - 1)
+      val numPassengers = v.getFreeSeats
       for (k <- 2 to numPassengers) {
         val kRequestsList = MListBuffer.empty[RideHailTrip]
         for {
