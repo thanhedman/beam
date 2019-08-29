@@ -54,7 +54,7 @@ class AsyncAlonsoMoraAlgForRideHail(
         spatialDemand.getDisk(center.getX, center.getY, searchRadius).asScala.toList
     }
     if(requests.nonEmpty) {
-      requests = requests.take(solutionSpaceSizePerVehicle*solutionSpaceSizePerVehicle)
+      requests = requests.take(solutionSpaceSizePerVehicle+solutionSpaceSizePerVehicle)
       if (requestWithCurrentVehiclePosition.tag == EnRoute) {
         val i = v.schedule.indexWhere(_.tag == EnRoute)
         val mainTasks = v.schedule.slice(0, i)
