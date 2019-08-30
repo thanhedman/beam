@@ -115,8 +115,8 @@ class AsyncAlonsoMoraAlgForRideHail(
             }
             .foreach { t =>
               val cost = computeCost(t, v)
-              potentialTripsWithKPassengers.append((t, v, cost))
-              /*if (potentialTripsWithKPassengers.size == 2) {
+              //potentialTripsWithKPassengers.append((t, v, cost))
+              if (potentialTripsWithKPassengers.size == solutionSpaceSizePerVehicle*k) {
                 // then replace the trip with highest sum of delays
                 val ((_, _, tripWithLargestDelayCost), index) =
                   potentialTripsWithKPassengers.filter(_._1.requests.size == k).zipWithIndex.maxBy(_._1._3)
@@ -126,7 +126,7 @@ class AsyncAlonsoMoraAlgForRideHail(
               } else {
                 // then add the new trip
                 potentialTripsWithKPassengers.append((t, v, cost))
-              }*/
+              }
             }
       }
       potentialTrips.appendAll(potentialTripsWithKPassengers)
