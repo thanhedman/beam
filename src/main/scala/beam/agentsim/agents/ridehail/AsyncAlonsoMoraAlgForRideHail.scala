@@ -57,7 +57,7 @@ class AsyncAlonsoMoraAlgForRideHail(
     if (customers.isEmpty)
       return (List.empty[RideHailTrip], v)
 
-    //customers = customers.take(solutionSpaceSizePerVehicle+solutionSpaceSizePerVehicle)
+    customers = customers.take(solutionSpaceSizePerVehicle+solutionSpaceSizePerVehicle)
     if (requestWithCurrentVehiclePosition.tag == EnRoute) {
       // if vehicle is EnRoute, then filter list of customer based on the destination of the passengers
       val i = v.schedule.indexWhere(_.tag == EnRoute)
@@ -69,9 +69,9 @@ class AsyncAlonsoMoraAlgForRideHail(
       // if vehicle is empty, prioritize the destination of the current closest customers
       customers = customers.sortBy(r => GeoUtils.minkowskiDistFormula(center, r.pickup.activity.getCoord))
       var mainRequests = List(customers.head)
-      if (customers.size > 1) {
-        mainRequests = mainRequests :+ customers(1)
-      }
+//      if (customers.size > 1) {
+//        mainRequests = mainRequests :+ customers(1)
+//      }
       customers = mainRequests ::: customers
         .drop(mainRequests.size)
         .filter(
