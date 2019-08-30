@@ -116,7 +116,7 @@ class AsyncAlonsoMoraAlgForRideHail(
             .foreach { t =>
               //potentialTripsWithKPassengers.append(t)
               val cost = computeCost(t, v)
-              if (potentialTripsWithKPassengers.size == 9) {
+              if (potentialTripsWithKPassengers.size == solutionSpaceSizePerVehicle) {
                 // then replace the trip with highest sum of delays
                 val ((_, _, tripWithLargestDelayCost), index) =
                   potentialTripsWithKPassengers.filter(_._1.requests.size == k).zipWithIndex.maxBy(_._1._3)
