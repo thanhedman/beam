@@ -114,13 +114,13 @@ class AsyncAlonsoMoraAlgForRideHail(
             )
             .foreach { t =>
               //potentialTripsWithKPassengers.append(t)
-              if (potentialTripsWithKPassengers.size == 1) {
+              if (potentialTripsWithKPassengers.size == solutionSpaceSizePerVehicle) {
                 // then replace the trip with highest sum of delays
                 val tripWithLargestDelay = potentialTripsWithKPassengers
                   .filter(_.requests.size == k)
                   .zipWithIndex
-                  .maxBy(_._1.getSumOfDelaysAsFraction)
-                if (tripWithLargestDelay._1.getSumOfDelaysAsFraction > t.getSumOfDelaysAsFraction) {
+                  .maxBy(_._1.sumOfDelaysAsFraction)
+                if (tripWithLargestDelay._1.sumOfDelaysAsFraction > t.sumOfDelaysAsFraction) {
                   potentialTripsWithKPassengers.patch(tripWithLargestDelay._2, Seq(t), 1)
                 }
               } else {
@@ -163,7 +163,32 @@ class AsyncAlonsoMoraAlgForRideHail(
   }
 
   def matchAndAssign(tick: Int): Future[List[(RideHailTrip, VehicleAndSchedule, Double)]] = {
-    val V: Int = supply.foldLeft(0) { case (maxCapacity, v) => Math max (maxCapacity, v.getFreeSeats) }
-    asyncBuildOfRSVGraph().map(AlonsoMoraPoolingAlgForRideHail.greedyAssignment(_, V, solutionSpaceSizePerVehicle))
+    /*asyncBuildOfRSVGraph().map(
+      AlonsoMoraPoolingAlgForRideHail.greedyAssignment(_, supply.map(_.getFreeSeats).max)
+    )*/
+    Future
+      .sequence(supply.withFilter(_.getFreeSeats >= 1).map { v =>
+        Future { matchVehicleRequests(v) }
+      })
+      .map { result =>
+        val assignments = result.flatMap {
+          case (trips, vehicle) =>
+            trips.map(
+              trip =>
+                (
+                  trip,
+                  vehicle,
+                  trip.requests.size * trip.sumOfDelaysAsFraction + (vehicle.getFreeSeats - trip.requests.size) * 1.0
+              )
+            )
+        }
+        greedyAssignmentBis(assignments)
+      }
+      .recover {
+        case e =>
+          println(e.getMessage)
+          List.empty[(RideHailTrip, VehicleAndSchedule, Double)]
+      }
+
   }
 }

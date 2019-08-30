@@ -20,7 +20,7 @@ import org.matsim.core.utils.collections.QuadTree
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.List
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable
 import beam.sim.config.BeamConfig.Beam.Agentsim.Agents.RideHail.AllocationManager
 
 class AlonsoMoraPoolingAlgForRideHail(
@@ -171,6 +171,27 @@ object AlonsoMoraPoolingAlgForRideHail {
   }
 
   // a greedy assignment using a cost function
+  def greedyAssignmentBis(
+    trips: List[(RideHailTrip, VehicleAndSchedule, Double)]
+  ): List[(RideHailTrip, VehicleAndSchedule, Double)] = {
+    val Rok = mutable.ListBuffer.empty[CustomerRequest]
+    val Vok = mutable.ListBuffer.empty[VehicleAndSchedule]
+    val greedyAssignmentList = mutable.ListBuffer.empty[(RideHailTrip, VehicleAndSchedule, Double)]
+    var tripsSorted = trips.sortBy(-_._1.requests.size)
+    while (tripsSorted.nonEmpty) {
+      tripsSorted.filter(_._1.requests.size == tripsSorted.head._1.requests.size).sortBy(_._3).foreach {
+        case (trip, vehicle, cost) if (!Vok.contains(vehicle) && !trip.requests.exists(r => Rok.contains(r))) =>
+          Rok.appendAll(trip.requests)
+          Vok.append(vehicle)
+          greedyAssignmentList.append((trip, vehicle, cost))
+        case _ =>
+      }
+      tripsSorted = tripsSorted.filter(t => !Vok.contains(t._2) && !t._1.requests.exists(r => Rok.contains(r)))
+    }
+    greedyAssignmentList.toList
+  }
+
+  // a greedy assignment using a cost function
   def greedyAssignment(
     rTvG: RTVGraph,
     maximumVehCapacity: Int,
@@ -196,7 +217,7 @@ object AlonsoMoraPoolingAlgForRideHail {
                 .head
             )
             .asInstanceOf[VehicleAndSchedule]
-          val cost = trip.requests.size * trip.getSumOfDelaysAsFraction + (solutionSpaceSizePerVehicle - trip.requests.size) * 1.0
+          val cost = trip.requests.size * trip.sumOfDelaysAsFraction + (solutionSpaceSizePerVehicle - trip.requests.size) * 1.0
           (trip, vehicle, cost)
         }
         .toList
@@ -342,7 +363,7 @@ object AlonsoMoraPoolingAlgForRideHail {
       veh.currentPassengerSchedule.map(_.locationAtTime(tick, beamServices)).getOrElse(veh.currentLocationUTM.loc)
     val v1Act0: Activity = PopulationUtils.createActivityFromCoord(s"${veh.vehicleId}Act0", vehCurrentLocation)
     v1Act0.setEndTime(tick)
-    var alonsoSchedule: ListBuffer[MobilityRequest] = ListBuffer()
+    var alonsoSchedule: mutable.ListBuffer[MobilityRequest] = mutable.ListBuffer()
 
     val alonsoMora: AllocationManager.AlonsoMora =
       beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora
@@ -357,7 +378,7 @@ object AlonsoMoraPoolingAlgForRideHail {
               s"${veh.vehicleId}Act0",
               beamServices.geo.wgs2Utm(leg.travelPath.startPoint.loc)
             )
-            alonsoSchedule = ListBuffer(
+            alonsoSchedule = mutable.ListBuffer(
               MobilityRequest(
                 None,
                 theActivity,
@@ -521,7 +542,7 @@ object AlonsoMoraPoolingAlgForRideHail {
     override def getId: String = requests.foldLeft(s"trip:") { case (c, x) => c + s"$x -> " }
     val sumOfDelays: Int = schedule.foldLeft(0) { case (c, r)              => c + (r.serviceTime - r.baselineNonPooledTime) }
 
-    val getSumOfDelaysAsFraction: Int = sumOfDelays / schedule.foldLeft(0) {
+    val sumOfDelaysAsFraction: Int = sumOfDelays / schedule.foldLeft(0) {
       case (c, r) => c + (r.upperBoundTime - r.baselineNonPooledTime)
     }
     override def toString: String =
