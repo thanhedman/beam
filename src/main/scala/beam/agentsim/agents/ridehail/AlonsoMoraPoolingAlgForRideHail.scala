@@ -1,7 +1,7 @@
 package beam.agentsim.agents.ridehail
 
 import beam.agentsim.agents.planning.Trip
-import beam.agentsim.agents.ridehail.AlonsoMoraPoolingAlgForRideHail._
+import beam.agentsim.agents.ridehail.AlonsoMoraPoolingAlgForRideHail.{RideHailTrip, VehicleAndSchedule, _}
 import beam.agentsim.agents.ridehail.RideHailVehicleManager.RideHailAgentLocation
 import beam.agentsim.agents.vehicles.EnergyEconomyAttributes.Powertrain
 import beam.agentsim.agents.vehicles.{BeamVehicle, BeamVehicleType, PersonIdWithActorRef}
@@ -161,6 +161,10 @@ class AlonsoMoraPoolingAlgForRideHail(
 }
 
 object AlonsoMoraPoolingAlgForRideHail {
+
+  def computeCost(trip: RideHailTrip, vehicle: VehicleAndSchedule): Double = {
+    trip.requests.size * trip.sumOfDelaysAsFraction + (vehicle.getFreeSeats - trip.requests.size) * 1.0
+  }
 
   def checkDistance(r: MobilityRequest, schedule: List[MobilityRequest], searchRadius: Double): Boolean = {
     schedule.foreach { s =>

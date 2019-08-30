@@ -29,7 +29,7 @@ class AsyncAlonsoMoraAlgForRideHail(
   private val waitingTimeInSec =
     beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.waitingTimeInSec
 
-  private def matchVehicleRequests(v: VehicleAndSchedule): (List[RideHailTrip], VehicleAndSchedule) = {
+  private def matchVehicleRequests(v: VehicleAndSchedule): List[(RideHailTrip, VehicleAndSchedule, Double)] = {
     val requestWithCurrentVehiclePosition = v.getRequestWithCurrentVehiclePosition
     val center = requestWithCurrentVehiclePosition.activity.getCoord
     val searchRadius = waitingTimeInSec * BeamSkimmer.speedMeterPerSec(BeamMode.CAV)
@@ -53,7 +53,7 @@ class AsyncAlonsoMoraAlgForRideHail(
 
     // if no customer found, returns
     if (customers.isEmpty)
-      return (List.empty[RideHailTrip], v)
+      return List.empty[(RideHailTrip, VehicleAndSchedule, Double)]
 
     if (requestWithCurrentVehiclePosition.tag == EnRoute) {
       // if vehicle is EnRoute, then filter list of customer based on the destination of the passengers
@@ -73,7 +73,7 @@ class AsyncAlonsoMoraAlgForRideHail(
         )
     }
 
-    val potentialTrips = mutable.ListBuffer.empty[RideHailTrip]
+    val potentialTrips = mutable.ListBuffer.empty[(RideHailTrip, VehicleAndSchedule, Double)]
     // consider solo rides as initial potential trips
     customers
       .take(solutionSpaceSizePerVehicle)
@@ -84,57 +84,73 @@ class AsyncAlonsoMoraAlgForRideHail(
       )
       .foreach {
         case (c, schedule) =>
-          potentialTrips append (RideHailTrip(List(c), schedule))
+          val trip = RideHailTrip(List(c), schedule)
+          potentialTrips.append((trip, v, computeCost(trip, v)))
       }
 
     // if no solo ride is possible, returns
     if (potentialTrips.isEmpty)
-      return (List.empty[RideHailTrip], v)
+      return List.empty[(RideHailTrip, VehicleAndSchedule, Double)]
 
     // building pooled rides from bottom up
     val numPassengers = v.getFreeSeats
     for (k <- 2 to numPassengers) {
-      val potentialTripsWithKPassengers = mutable.ListBuffer.empty[RideHailTrip]
+      val potentialTripsWithKPassengers = mutable.ListBuffer.empty[(RideHailTrip, VehicleAndSchedule, Double)]
       potentialTrips.zipWithIndex.foreach {
-        case (pt1, pt1_index) =>
+        case ((t1, _, _), pt1_index) =>
           potentialTrips
             .drop(pt1_index)
-            .filter(
-              pt2 =>
-                !(pt2.requests exists (s => pt1.requests contains s)) && (pt1.requests.size + pt2.requests.size) == k
-            )
-            .flatten(
-              pt2 =>
+            .filter {
+              case (t2, _, _) =>
+                !(t2.requests exists (s => t1.requests contains s)) && (t1.requests.size + t2.requests.size) == k
+            }
+            .flatten {
+              case (t2, _, _) =>
                 getRidehailSchedule(
                   v.schedule,
-                  (pt1.requests ++ pt2.requests).flatMap(x => List(x.pickup, x.dropoff)),
+                  (t1.requests ++ t2.requests).flatMap(x => List(x.pickup, x.dropoff)),
                   v.vehicleRemainingRangeInMeters.toInt,
                   skimmer
-                ).map(schedule => RideHailTrip(pt1.requests ++ pt2.requests, schedule))
-            )
+                ).map(schedule => RideHailTrip(t1.requests ++ t2.requests, schedule))
+            }
             .foreach { t =>
               //potentialTripsWithKPassengers.append(t)
+              val cost = computeCost(t, v)
               if (potentialTripsWithKPassengers.size == solutionSpaceSizePerVehicle) {
                 // then replace the trip with highest sum of delays
-                val tripWithLargestDelay = potentialTripsWithKPassengers
-                  .filter(_.requests.size == k)
-                  .zipWithIndex
-                  .maxBy(_._1.sumOfDelaysAsFraction)
-                if (tripWithLargestDelay._1.sumOfDelaysAsFraction > t.sumOfDelaysAsFraction) {
-                  potentialTripsWithKPassengers.patch(tripWithLargestDelay._2, Seq(t), 1)
+                val ((_, _, tripWithLargestDelayCost), index) =
+                  potentialTripsWithKPassengers.filter(_._1.requests.size == k).zipWithIndex.maxBy(_._1._3)
+                if (tripWithLargestDelayCost > cost) {
+                  potentialTripsWithKPassengers.patch(index, Seq((t, v, cost)), 1)
                 }
               } else {
                 // then add the new trip
-                potentialTripsWithKPassengers.append(t)
+                potentialTripsWithKPassengers.append((t, v, cost))
               }
             }
       }
       potentialTrips.appendAll(potentialTripsWithKPassengers)
     }
-    (potentialTrips.toList, v)
+    potentialTrips.toList
   }
 
-  private def asyncBuildOfRSVGraph(): Future[AlonsoMoraPoolingAlgForRideHail.RTVGraph] = {
+  def matchAndAssign(tick: Int): Future[List[(RideHailTrip, VehicleAndSchedule, Double)]] = {
+    /*asyncBuildOfRSVGraph().map(
+      AlonsoMoraPoolingAlgForRideHail.greedyAssignment(_, supply.map(_.getFreeSeats).max)
+    )*/
+    Future
+      .sequence(supply.withFilter(_.getFreeSeats >= 1).map { v =>
+        Future { matchVehicleRequests(v) }
+      })
+      .map(result => greedyAssignmentBis(result.flatten))
+      .recover {
+        case e =>
+          println(e.getMessage)
+          List.empty[(RideHailTrip, VehicleAndSchedule, Double)]
+      }
+
+  }
+  /*private def asyncBuildOfRSVGraph(): Future[AlonsoMoraPoolingAlgForRideHail.RTVGraph] = {
     Future
       .sequence(supply.withFilter(_.getFreeSeats >= 1).map { v =>
         Future { matchVehicleRequests(v) }
@@ -160,35 +176,5 @@ class AsyncAlonsoMoraAlgForRideHail(
           println(e.getMessage)
           AlonsoMoraPoolingAlgForRideHail.RTVGraph(classOf[DefaultEdge])
       }
-  }
-
-  def matchAndAssign(tick: Int): Future[List[(RideHailTrip, VehicleAndSchedule, Double)]] = {
-    /*asyncBuildOfRSVGraph().map(
-      AlonsoMoraPoolingAlgForRideHail.greedyAssignment(_, supply.map(_.getFreeSeats).max)
-    )*/
-    Future
-      .sequence(supply.withFilter(_.getFreeSeats >= 1).map { v =>
-        Future { matchVehicleRequests(v) }
-      })
-      .map { result =>
-        val assignments = result.flatMap {
-          case (trips, vehicle) =>
-            trips.map(
-              trip =>
-                (
-                  trip,
-                  vehicle,
-                  trip.requests.size * trip.sumOfDelaysAsFraction + (vehicle.getFreeSeats - trip.requests.size) * 1.0
-              )
-            )
-        }
-        greedyAssignmentBis(assignments)
-      }
-      .recover {
-        case e =>
-          println(e.getMessage)
-          List.empty[(RideHailTrip, VehicleAndSchedule, Double)]
-      }
-
-  }
+  }*/
 }
