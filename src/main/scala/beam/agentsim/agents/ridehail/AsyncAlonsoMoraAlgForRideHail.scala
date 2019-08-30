@@ -65,7 +65,7 @@ class AsyncAlonsoMoraAlgForRideHail(
     } else {
       // if vehicle is empty, prioritize the destination of the current closest customers
       customers = customers.sortBy(r => GeoUtils.minkowskiDistFormula(center, r.pickup.activity.getCoord))
-      val mainRequests = customers.slice(0, Math.max(customers.size, 6))
+      val mainRequests = customers.slice(0, Math.max(customers.size, 2))
       customers = mainRequests ::: customers
         .drop(mainRequests.size)
         .filter(
