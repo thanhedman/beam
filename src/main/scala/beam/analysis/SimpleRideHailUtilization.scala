@@ -27,16 +27,16 @@ class SimpleRideHailUtilization extends IterationSummaryAnalysis with GraphAnaly
         case (rides, numOfPassenger) =>
           dataset.addValue(
             java.lang.Double.valueOf(rides.toString),
-            s"RideTripsWith${numOfPassenger}Passengers",
+            s"RideHailPathTraversalsWith${numOfPassenger}Passengers",
             s"it.$iteration"
           )
       }
     }
-    val fileName = event.getServices.getControlerIO.getOutputFilename("rideHailUtilisation.png")
+    val fileName = event.getServices.getControlerIO.getOutputFilename("rideHailUtilization.png")
     createGraphInRootDirectory(
       dataset,
       fileName,
-      (0 until iterOverallRideStat.values.flatten.size).map(numOfPass => s"RideTripsWith${numOfPass}Passengers").asJava
+      (0 until iterOverallRideStat.values.flatten.size).map(numOfPass => s"RideHailPathTraversalsWith${numOfPass}Passengers").asJava
     )
   }
 
@@ -57,7 +57,7 @@ class SimpleRideHailUtilization extends IterationSummaryAnalysis with GraphAnaly
       .map {
         case (rides, numOfPassenger) =>
           val value: java.lang.Double = java.lang.Double.valueOf(rides.toString)
-          s"RideTripsWith${numOfPassenger}Passengers" -> value
+          s"RideHailPathTraversalsWith${numOfPassenger}Passengers" -> value
       }
       .toMap
       .asJava
@@ -91,9 +91,9 @@ class SimpleRideHailUtilization extends IterationSummaryAnalysis with GraphAnaly
     fileName: String,
     rideTrips: util.List[String]
   ): Unit = {
-    val graphTitleName = "Ride Hail Utilisation"
+    val graphTitleName = "Ride Hail Utilization"
     val xAxisTitle = "Iteration"
-    val yAxisTitle = "# Ride Trip"
+    val yAxisTitle = "# Ride Hail Path Traversals"
     val legend = true
     val chart: JFreeChart = GraphUtils.createStackedBarChartWithDefaultSettings(
       dataset,
