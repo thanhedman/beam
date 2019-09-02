@@ -87,6 +87,7 @@ class ModeChoiceMultinomialLogit(
 //              |""".stripMargin
 
         val modesToAlts = modeCostTimeTransfers.map(theAlt => (theAlt.mode -> theAlt)).toMap
+        val modesToOrigAlts = alternatives.map(theAlt => (theAlt.tripClassifier -> theAlt)).toMap
         val costs = BeamMode.allModes.map{ theMode =>
           modesToAlts.get(theMode) match{
             case Some(alt) =>
@@ -103,10 +104,26 @@ class ModeChoiceMultinomialLogit(
               ""
           }
         }.mkString(",")
+        val speeds = BeamMode.allModes.map{ theMode =>
+          modesToOrigAlts.get(theMode) match{
+            case Some(alt) =>
+              s"${alt.beamLegs.map(_.travelPath.distanceInM).sum / 1609 / (alt.totalTravelTimeInSecs / 3600.0)}"
+            case None =>
+              ""
+          }
+        }.mkString(",")
+        val transfers = BeamMode.allModes.map{ theMode =>
+          modesToAlts.get(theMode) match{
+            case Some(alt) =>
+              s"${alt.numTransfers}"
+            case None =>
+              ""
+          }
+        }.mkString(",")
         val chosenMode = chosenModeOpt.map(_.alternativeType).getOrElse("")
         val altUtil = chosenModeOpt.map(_.utility).getOrElse("")
         val altProb = chosenModeOpt.map(_.realProbability).getOrElse("")
-        val csvToLog = s"${personId.get.toString},${destinationActivity.get.getType},$costs,$times,$chosenMode,$altUtil,$altProb,$expectedMaximumUtility\n"
+        val csvToLog = s"${personId.get.toString},${destinationActivity.get.getType},$costs,$times,$speeds,$transfers,$chosenMode,$altUtil,$altProb,$expectedMaximumUtility,${attributesOfIndividual.getVOT(1.0)}\n"
         ModeChoiceMultinomialLogit.getWriter().getBufferedWriter.write(csvToLog)
 //        logger.debug(msgToLog)
       }
@@ -312,9 +329,10 @@ object ModeChoiceMultinomialLogit {
   private var writer: CSVWriter = null
   def getWriter() = {
     if(writer==null){
-//      writer = new CSVWriter("/Users/critter/Downloads/modeChoiceOut.csv")
       writer = new CSVWriter("./modeChoiceOut.csv")
-      val header = s"person,activity,${BeamMode.allModes.map(mode => s"${mode}_cost").mkString(",")},${BeamMode.allModes.map(mode => s"${mode}_time").mkString(",")},mode,altUtil,altProb,expMaxUtil\n"
+      val header = s"person,activity,${BeamMode.allModes.map(mode => s"${mode}_cost").mkString(",")}," +
+        s"${BeamMode.allModes.map(mode => s"${mode}_time").mkString(",")},${BeamMode.allModes.map(mode => s"${mode}_speed").mkString(",")}," +
+        s"${BeamMode.allModes.map(mode => s"${mode}_transfers").mkString(",")},mode,altUtil,altProb,expMaxUtil,personVOTT\n"
       writer.getBufferedWriter.write(header)
     }
     writer
