@@ -249,13 +249,19 @@ object PopulationAdjustment extends LazyLogging {
     )
 
     // Read person attribute "valueOfTime", use function of HH income if not, and default it to the respective config value if neither is found
+    // Units of utils / hour
     val valueOfTime: Double =
       Option(personAttributes.getAttribute(person.getId.toString, "valueOfTime"))
         .map(_.asInstanceOf[Double])
         .getOrElse(
-          IncomeToValueOfTime(householdAttributes.householdIncome)
-            .getOrElse(beamScenario.beamConfig.beam.agentsim.agents.modalBehaviors.defaultValueOfTime)
+          IncomeToValueOfTime(
+            householdAttributes.householdIncome,
+            beamScenario.beamConfig.beam.agentsim.agents.modalBehaviors.mulitnomialLogit.params.beta_cost
+          ).getOrElse(beamScenario.beamConfig.beam.agentsim.agents.modalBehaviors.defaultValueOfTime)
         )
+    // Get the conversion factor between dollars and utils (units of utils / dollar)
+    val valueOfMoney: Double =
+      beamScenario.beamConfig.beam.agentsim.agents.modalBehaviors.mulitnomialLogit.params.beta_cost
     // Generate the AttributesOfIndividual object as save it as custom attribute - "beam-attributes" for the person
     AttributesOfIndividual(
       householdAttributes,
@@ -263,15 +269,17 @@ object PopulationAdjustment extends LazyLogging {
       Option(PersonUtils.getSex(person)).getOrElse("M").equalsIgnoreCase("M"),
       availableModes,
       valueOfTime,
+      Option(valueOfMoney),
       Option(PersonUtils.getAge(person)),
       Some(income)
     )
   }
-  private def IncomeToValueOfTime(income: Double): Option[Double] = {
+  private def IncomeToValueOfTime(income: Double, beta_cost: Double): Option[Double] = {
+    // RETURNS A NUMBER WITH UNITS UTILS / HOUR
     val workHoursPerYear = 51 * 40 // TODO: Make nonlinear--eg https://ac.els-cdn.com/S0965856411001613/1-s2.0-S0965856411001613-main.pdf
     val wageFactor = 0.5
     if (income > 0) {
-      Some(income / workHoursPerYear * wageFactor)
+      Some(income / workHoursPerYear * wageFactor * beta_cost)
     } else {
       None
     }

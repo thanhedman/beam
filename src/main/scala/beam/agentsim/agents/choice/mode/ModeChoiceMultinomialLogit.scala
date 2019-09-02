@@ -156,7 +156,7 @@ class ModeChoiceMultinomialLogit(
       val incentive: Double = beamServices.beamScenario.modeIncentives.computeIncentive(attributesOfIndividual, mode)
 
       val incentivizedCost =
-        Math.max(0, totalCost.toDouble - incentive)
+      Math.max(0, totalCost.toDouble - incentive) * attributesOfIndividual.valueOfMoney.getOrElse(1.0)
 
       if (totalCost < incentive)
         logger.warn(

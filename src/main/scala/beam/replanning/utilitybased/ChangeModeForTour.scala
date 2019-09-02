@@ -242,6 +242,9 @@ class ChangeModeForTour(
           specifiedVot.asInstanceOf[Double]
       }
 
+    val valueOfMoney: Double =
+      beamServices.beamConfig.beam.agentsim.agents.modalBehaviors.mulitnomialLogit.params.beta_cost
+
     val availableModes: Seq[BeamMode] = PopulationAdjustment
       .getBeamAttributes(beamServices.matsimServices.getScenario.getPopulation, person.getId.toString)
       .availableModes
@@ -259,6 +262,7 @@ class ChangeModeForTour(
         PersonUtils.getSex(person).equalsIgnoreCase("M"),
         availableModes,
         valueOfTime,
+        Option(valueOfMoney),
         Option(PersonUtils.getAge(person)),
         income.map { x =>
           x

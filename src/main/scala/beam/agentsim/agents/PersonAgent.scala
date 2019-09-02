@@ -914,7 +914,9 @@ class PersonAgent(
           val correctedTrip = correctTripEndTime(data.currentTrip.get, tick, body.id, body.beamVehicleType.id)
           val generalizedTime =
             modeChoiceCalculator.getGeneralizedTimeOfTrip(correctedTrip, Some(attributes), nextActivity(data))
-          val generalizedCost = modeChoiceCalculator.getNonTimeCost(correctedTrip) + attributes
+          val generalizedCost = modeChoiceCalculator.getNonTimeCost(correctedTrip) * attributes.valueOfMoney.getOrElse(
+            1.0
+          ) + attributes
             .getVOT(generalizedTime)
           // Correct the trip to deal with ride hail / disruptions and then register to skimmer
           beamSkimmer.observeTrip(

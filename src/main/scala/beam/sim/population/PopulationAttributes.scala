@@ -24,6 +24,7 @@ case class AttributesOfIndividual(
   isMale: Boolean,
   availableModes: Seq[BeamMode],
   valueOfTime: Double,
+  valueOfMoney: Option[Double],
   age: Option[Int],
   income: Option[Double]
 ) extends PopulationAttributes {
@@ -192,7 +193,7 @@ case class AttributesOfIndividual(
 }
 
 object AttributesOfIndividual {
-  val EMPTY = AttributesOfIndividual(HouseholdAttributes.EMPTY, None, true, Seq(), 0.0, None, None)
+  val EMPTY = AttributesOfIndividual(HouseholdAttributes.EMPTY, None, true, Seq(), 0.0, None, None, None)
 }
 
 case class HouseholdAttributes(
