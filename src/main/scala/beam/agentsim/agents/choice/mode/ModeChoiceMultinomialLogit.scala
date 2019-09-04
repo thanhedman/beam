@@ -16,6 +16,7 @@ import org.matsim.api.core.v01.Id
 import org.matsim.api.core.v01.population.{Activity, Person}
 import org.matsim.vehicles.Vehicle
 import beam.agentsim.agents.modalbehaviors.ModeChoiceCalculator._
+import beam.analysis.via.CSVWriter
 import beam.sim.config.{BeamConfig, BeamConfigHolder}
 
 import scala.collection.mutable
@@ -37,7 +38,7 @@ class ModeChoiceMultinomialLogit(
   var expectedMaximumUtility: Double = 0.0
   val modalBehaviors: ModalBehaviors = beamConfig.beam.agentsim.agents.modalBehaviors
 
-  private val shouldLogDetails: Boolean = false
+  private val shouldLogDetails: Boolean = true
 
   override def apply(
     alternatives: IndexedSeq[EmbodiedBeamTrip],
@@ -72,19 +73,59 @@ class ModeChoiceMultinomialLogit(
 
       if (shouldLogDetails) {
         val personId = person.map(_.getId)
-        val msgToLog =
-          s"""|@@@[$personId]-----------------------------------------
-              |@@@[$personId]Alternatives:${alternatives}
-              |@@@[$personId]AttributesOfIndividual:${attributesOfIndividual}
-              |@@@[$personId]DestinationActivity:${destinationActivity}
-              |@@@[$personId]modeCostTimeTransfers:$modeCostTimeTransfers
-              |@@@[$personId]bestInGroup:$bestInGroup
-              |@@@[$personId]inputData:$inputData
-              |@@@[$personId]chosenModeOpt:${chosenModeOpt}
-              |@@@[$personId]expectedMaximumUtility:${chosenModeOpt}
-              |@@@[$personId]-----------------------------------------
-              |""".stripMargin
-        logger.debug(msgToLog)
+//        val msgToLog =
+//          s"""|@@@[$personId]-----------------------------------------
+//              |@@@[$personId]Alternatives:${alternatives}
+//              |@@@[$personId]AttributesOfIndividual:${attributesOfIndividual}
+//              |@@@[$personId]DestinationActivity:${destinationActivity}
+//              |@@@[$personId]modeCostTimeTransfers:$modeCostTimeTransfers
+//              |@@@[$personId]bestInGroup:$bestInGroup
+//              |@@@[$personId]inputData:$inputData
+//              |@@@[$personId]chosenModeOpt:${chosenModeOpt}
+//              |@@@[$personId]expectedMaximumUtility:${chosenModeOpt}
+//              |@@@[$personId]-----------------------------------------
+//              |""".stripMargin
+
+        val modesToAlts = modeCostTimeTransfers.map(theAlt => (theAlt.mode -> theAlt)).toMap
+        val modesToOrigAlts = alternatives.map(theAlt => (theAlt.tripClassifier -> theAlt)).toMap
+        val costs = BeamMode.allModes.map{ theMode =>
+          modesToAlts.get(theMode) match{
+            case Some(alt) =>
+              s"${alt.cost}"
+            case None =>
+              ""
+          }
+        }.mkString(",")
+        val times = BeamMode.allModes.map{ theMode =>
+          modesToAlts.get(theMode) match{
+            case Some(alt) =>
+              s"${alt.scaledTime}"
+            case None =>
+              ""
+          }
+        }.mkString(",")
+        val speeds = BeamMode.allModes.map{ theMode =>
+          modesToOrigAlts.get(theMode) match{
+            case Some(alt) =>
+              s"${alt.beamLegs.map(_.travelPath.distanceInM).sum / 1609 / (alt.totalTravelTimeInSecs / 3600.0)}"
+            case None =>
+              ""
+          }
+        }.mkString(",")
+        val transfers = BeamMode.allModes.map{ theMode =>
+          modesToAlts.get(theMode) match{
+            case Some(alt) =>
+              s"${alt.numTransfers}"
+            case None =>
+              ""
+          }
+        }.mkString(",")
+        val chosenMode = chosenModeOpt.map(_.alternativeType).getOrElse("")
+        val altUtil = chosenModeOpt.map(_.utility).getOrElse("")
+        val altProb = chosenModeOpt.map(_.realProbability).getOrElse("")
+        val csvToLog = s"${personId.get.toString},${destinationActivity.get.getType},$costs,$times,$speeds,$transfers,$chosenMode,$altUtil,$altProb,$expectedMaximumUtility,${attributesOfIndividual.getVOT(1.0)}\n"
+        ModeChoiceMultinomialLogit.getWriter().getBufferedWriter.write(csvToLog)
+//        logger.debug(msgToLog)
       }
 
       chosenModeOpt match {
@@ -284,6 +325,18 @@ class ModeChoiceMultinomialLogit(
 }
 
 object ModeChoiceMultinomialLogit {
+
+  private var writer: CSVWriter = null
+  def getWriter() = {
+    if(writer==null){
+      writer = new CSVWriter("./modeChoiceOut.csv")
+      val header = s"person,activity,${BeamMode.allModes.map(mode => s"${mode}_cost").mkString(",")}," +
+        s"${BeamMode.allModes.map(mode => s"${mode}_time").mkString(",")},${BeamMode.allModes.map(mode => s"${mode}_speed").mkString(",")}," +
+        s"${BeamMode.allModes.map(mode => s"${mode}_transfers").mkString(",")},mode,altUtil,altProb,expMaxUtil,personVOTT\n"
+      writer.getBufferedWriter.write(header)
+    }
+    writer
+  }
 
   def buildModelFromConfig(configHolder: BeamConfigHolder): MultinomialLogit[String, String] = {
 
