@@ -23,7 +23,7 @@ import beam.router.model.BeamLeg._
 import beam.router.model.RoutingModel.TransitStopsInfo
 import beam.router.model.{EmbodiedBeamTrip, RoutingModel, _}
 import beam.router.osm.TollCalculator
-import beam.router.r5.R5RoutingWorker.{createBushwackingBeamLeg, R5Request, StopVisitor}
+import beam.router.r5.R5RoutingWorker.{R5Request, StopVisitor, createBushwackingBeamLeg}
 import beam.sim.BeamScenario
 import beam.sim.common.{GeoUtils, GeoUtilsImpl}
 import beam.sim.config.{BeamConfig, MatSimBeamConfigBuilder}
@@ -40,6 +40,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder
 import com.typesafe.config.Config
 import gnu.trove.map.TIntIntMap
 import gnu.trove.map.hash.TIntIntHashMap
+import org.apache.log4j.Logger
 import org.matsim.api.core.v01.network.Network
 import org.matsim.api.core.v01.{Coord, Id, Scenario}
 import org.matsim.core.router.util.TravelTime
@@ -255,6 +256,7 @@ class R5Wrapper(workerParams: WorkerParameters, travelTime: TravelTime) extends 
   ) = workerParams
 
   private val maxFreeSpeed = networkHelper.allLinks.map(_.getFreespeed).max
+  private val logger = Logger.getLogger(classOf[R5Wrapper])
 
   def embodyWithCurrentTravelTime(
     leg: BeamLeg,
@@ -287,6 +289,9 @@ class R5Wrapper(workerParams: WorkerParameters, travelTime: TravelTime) extends 
     val toll = tollCalculator.calcTollByLinkIds(updatedTravelPath)
     val updatedLeg = leg.copy(travelPath = updatedTravelPath, duration = updatedTravelPath.duration)
     val drivingCost = DrivingCost.estimateDrivingCost(leg, vehicleTypes(vehicleTypeId), fuelTypePrices)
+    if(drivingCost + toll > 10000) {
+      logger.error("embodyWithCurrentTravelTime: drivingCost: " + drivingCost +" - toll: " + toll)
+    }
     val response = RoutingResponse(
       Vector(
         EmbodiedBeamTrip(
