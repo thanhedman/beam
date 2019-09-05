@@ -89,8 +89,14 @@ trait ModeChoiceCalculator {
       case _ =>
         embodiedBeamTrip.costEstimate
     }
-    if(totalCost > 1000 || embodiedBeamTrip.replanningPenalty > 1000) {
-      logger.info("vehicle: " + embodiedBeamTrip.vehiclesInTrip + " - mode: " + embodiedBeamTrip.tripClassifier + " - totalCost: "  + totalCost + " - replanningPenalty: " + embodiedBeamTrip.replanningPenalty)
+    if(totalCost > 5000 || embodiedBeamTrip.replanningPenalty > 5000) {
+      logger.info(
+        "getNonTimeCost: vehicle: " + embodiedBeamTrip.vehiclesInTrip +
+        " - mode: " + embodiedBeamTrip.tripClassifier +
+        " - totalCost: "  + totalCost +
+        " - travel time: " + embodiedBeamTrip.totalTravelTimeInSecs +
+        " - replanningPenalty: " + embodiedBeamTrip.replanningPenalty)
+      logger.info(embodiedBeamTrip.legs.toList)
     }
     if (includeReplanningPenalty) {
       totalCost + embodiedBeamTrip.replanningPenalty
