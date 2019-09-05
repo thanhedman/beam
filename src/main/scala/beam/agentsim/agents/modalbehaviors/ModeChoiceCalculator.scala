@@ -9,6 +9,7 @@ import beam.router.model.{EmbodiedBeamLeg, EmbodiedBeamTrip}
 import beam.sim.BeamServices
 import beam.sim.config.{BeamConfig, BeamConfigHolder}
 import beam.sim.population.AttributesOfIndividual
+import org.apache.log4j.Logger
 import org.matsim.api.core.v01.population.{Activity, Person}
 
 import scala.collection.mutable.ListBuffer
@@ -62,7 +63,7 @@ trait ModeChoiceCalculator {
   ): Double
 
   def utilityOf(mode: BeamMode, cost: Double, time: Double, numTransfers: Int = 0): Double
-
+  private val logger = Logger.getLogger(classOf[ModeChoiceCalculator])
   def getNonTimeCost(embodiedBeamTrip: EmbodiedBeamTrip, includeReplanningPenalty: Boolean = false): Double = {
 
     val totalCost = embodiedBeamTrip.tripClassifier match {
@@ -87,6 +88,9 @@ trait ModeChoiceCalculator {
           .sum + rideHailDefault * beamConfig.beam.agentsim.tuning.rideHailPrice)
       case _ =>
         embodiedBeamTrip.costEstimate
+    }
+    if(totalCost > 1000 || embodiedBeamTrip.replanningPenalty > 1000) {
+      logger.info("vehicle: " + embodiedBeamTrip.vehiclesInTrip + " - mode: " + embodiedBeamTrip.tripClassifier + " - generalizedCost: "  + totalCost)
     }
     if (includeReplanningPenalty) {
       totalCost + embodiedBeamTrip.replanningPenalty

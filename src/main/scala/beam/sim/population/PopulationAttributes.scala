@@ -8,6 +8,7 @@ import beam.router.Modes.BeamMode._
 import beam.router.RouteHistory.LinkId
 import beam.router.model.EmbodiedBeamLeg
 import beam.sim.BeamServices
+import org.apache.log4j.Logger
 import org.matsim.api.core.v01.Id
 import org.matsim.api.core.v01.population._
 import org.matsim.households.Income.IncomePeriod
@@ -105,9 +106,14 @@ case class AttributesOfIndividual(
         embodiedBeamLeg.beamLeg.duration / 3600
     }
   }
+  private val logger = Logger.getLogger(classOf[AttributesOfIndividual])
 
   def getVOT(generalizedTime: Double): Double = {
-    valueOfTime * generalizedTime
+    val res = valueOfTime * generalizedTime
+    if(res > 1000) {
+      logger.info("valueOfTime: " + valueOfTime + " - generalizedTime: " + generalizedTime + " - income: "  + this.income)
+    }
+    res
   }
 
   private def getAutomationLevel(
