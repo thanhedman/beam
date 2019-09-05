@@ -90,7 +90,7 @@ trait ModeChoiceCalculator {
         embodiedBeamTrip.costEstimate
     }
     if(totalCost > 1000 || embodiedBeamTrip.replanningPenalty > 1000) {
-      logger.info("vehicle: " + embodiedBeamTrip.vehiclesInTrip + " - mode: " + embodiedBeamTrip.tripClassifier + " - generalizedCost: "  + totalCost)
+      logger.info("vehicle: " + embodiedBeamTrip.vehiclesInTrip + " - mode: " + embodiedBeamTrip.tripClassifier + " - totalCost: "  + totalCost + " - replanningPenalty: " + embodiedBeamTrip.replanningPenalty)
     }
     if (includeReplanningPenalty) {
       totalCost + embodiedBeamTrip.replanningPenalty
