@@ -917,7 +917,7 @@ class PersonAgent(
           val generalizedCost = modeChoiceCalculator.getNonTimeCost(correctedTrip) + attributes
             .getVOT(generalizedTime)
           if(generalizedCost > 10000) {
-            logInfo("PersonAgent: person: " + id + " - mode: " + correctedTrip.tripClassifier + " - generalizedCost: "  + generalizedCost)
+            logInfo("PersonAgent: generalizedCost: " + generalizedCost + " - person: " + id + " - mode: " + correctedTrip.tripClassifier + " - generalizedCost: "  + generalizedCost)
           }
           // Correct the trip to deal with ride hail / disruptions and then register to skimmer
           beamSkimmer.observeTrip(
