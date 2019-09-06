@@ -360,6 +360,9 @@ trait ChoosesMode {
                     choosesModeData.currentLocation.loc,
                     nextAct.getCoord
                   )
+                  if(nextAct.getEndTime.intValue() - destination.time > 1000000) {
+                    logInfo("ChoosesMode $$$ endTime: " + nextAct.getEndTime + " - val: " + (nextAct.getEndTime.intValue() - destination.time))
+                  }
                   parkingRequestId = requestParkingCost(
                     destination.loc,
                     nextAct.getType,
