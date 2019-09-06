@@ -1,5 +1,7 @@
 package beam.agentsim.infrastructure.parking
 
+import org.apache.log4j.Logger
+
 import scala.util.{Failure, Success, Try}
 
 /**
@@ -57,7 +59,7 @@ object PricingModel {
       case _ =>
         throw new java.io.IOException(s"Pricing Model is invalid: $s")
     }
-
+  private val logger = Logger.getLogger(classOf[PricingModel])
   /**
     * computes the cost of this pricing model for some duration. only considers the PricingModel, and does not include any fueling costs
     * @param pricingModel the pricing model
@@ -68,6 +70,9 @@ object PricingModel {
     pricingModel match {
       case FlatFee(cost) => cost
       case Block(cost, intervalSeconds) =>
+        if(parkingDurationInSeconds > 1000000) {
+          logger.info("PricingModel $$$ parkingDurationInSeconds: " + parkingDurationInSeconds)
+        }
         (math.max(0.0, parkingDurationInSeconds.toDouble) / intervalSeconds.toDouble) * cost
     }
   }

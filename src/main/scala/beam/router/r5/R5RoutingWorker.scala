@@ -289,7 +289,7 @@ class R5Wrapper(workerParams: WorkerParameters, travelTime: TravelTime) extends 
     val toll = tollCalculator.calcTollByLinkIds(updatedTravelPath)
     val updatedLeg = leg.copy(travelPath = updatedTravelPath, duration = updatedTravelPath.duration)
     val drivingCost = DrivingCost.estimateDrivingCost(leg, vehicleTypes(vehicleTypeId), fuelTypePrices)
-    if(drivingCost + toll > 10000) {
+    if(drivingCost + toll > 1000000) {
       logger.error("embodyWithCurrentTravelTime: drivingCost: " + drivingCost +" - toll: " + toll)
     }
     val response = RoutingResponse(

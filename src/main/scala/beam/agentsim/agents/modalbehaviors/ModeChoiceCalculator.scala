@@ -89,7 +89,7 @@ trait ModeChoiceCalculator {
       case _ =>
         embodiedBeamTrip.costEstimate
     }
-    if(totalCost > 5000 || embodiedBeamTrip.replanningPenalty > 5000) {
+    if(totalCost > 1000000) {
       logger.info(
         "getNonTimeCost: totalCost: " + totalCost +
         " - mode: " + embodiedBeamTrip.tripClassifier +

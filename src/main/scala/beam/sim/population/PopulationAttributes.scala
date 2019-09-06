@@ -110,7 +110,7 @@ case class AttributesOfIndividual(
 
   def getVOT(generalizedTime: Double): Double = {
     val res = valueOfTime * generalizedTime
-    if(res > 4000) {
+    if(res > 1000000) {
       logger.info("getVOT: tot: " + res +" - valueOfTime: " + valueOfTime + " - generalizedTime: " + generalizedTime + " - income: "  + this.income)
     }
     res

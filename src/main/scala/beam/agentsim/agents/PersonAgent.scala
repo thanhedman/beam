@@ -916,7 +916,7 @@ class PersonAgent(
             modeChoiceCalculator.getGeneralizedTimeOfTrip(correctedTrip, Some(attributes), nextActivity(data))
           val generalizedCost = modeChoiceCalculator.getNonTimeCost(correctedTrip) + attributes
             .getVOT(generalizedTime)
-          if(generalizedCost > 10000) {
+          if(generalizedCost > 1000000) {
             logInfo("PersonAgent: generalizedCost: " + generalizedCost + " - person: " + id + " - mode: " +
               correctedTrip.tripClassifier + " - generalizedCost: "  + generalizedCost + s" - NonTimeCost: ${modeChoiceCalculator.getNonTimeCost(correctedTrip)}" +
               s" - correctedTrip ${correctedTrip} ::: ${correctedTrip.legs.map(leg => s"${leg.beamLeg}_${leg.cost}").mkString(":")}"
