@@ -29,6 +29,8 @@ class PeakSkimObserver(
     with MetricsSupport {
   private implicit val timeout: Timeout = Timeout(50000, TimeUnit.SECONDS)
   private implicit val executionContext: ExecutionContext = context.dispatcher
+  var failedRoutes = 0
+  var successfullRoutes = 0
 
   override def receive: PartialFunction[Any, Unit] = {
 
@@ -43,9 +45,9 @@ class PeakSkimObserver(
         beamServices.beamScenario.vehicleTypes.values.find(theType => theType.vehicleCategory == Body).get
       val tazs = beamServices.beamScenario.tazTreeMap.getTAZs.toList.sortBy(_.tazId.toString)
       val requests = tazs.zipWithIndex.flatten {
-        case (originTaz, index) =>
-          tazs.slice(0, index + 1).zipWithIndex.map {
-            case (destinationTaz, index2) =>
+        case (originTaz, orgIdx) =>
+          tazs.zipWithIndex.map {
+            case (destinationTaz, dstIdx) =>
               val dummyStreetVehicle = StreetVehicle(
                 Id.createVehicleId("dummy-car-for-skim-observations"),
                 dummyCarVehicleType.id,
@@ -54,21 +56,21 @@ class PeakSkimObserver(
                 asDriver = true
               )
               val originCoord = if (originTaz.tazId.equals(destinationTaz.tazId)) {
-                new Coord(originTaz.coord.getX + Math.sqrt(originTaz.areaInSquareMeters) / 4.0, originTaz.coord.getY)
+                new Coord(originTaz.coord.getX + Math.sqrt(originTaz.areaInSquareMeters) / 3.0, originTaz.coord.getY)
               } else {
                 originTaz.coord
               }
               val destCoord = if (originTaz.tazId.equals(destinationTaz.tazId)) {
                 new Coord(
-                  destinationTaz.coord.getX - Math.sqrt(destinationTaz.areaInSquareMeters) / 4.0,
+                  destinationTaz.coord.getX - Math.sqrt(destinationTaz.areaInSquareMeters) / 3.0,
                   destinationTaz.coord.getY
                 )
               } else {
                 destinationTaz.coord
               }
               (
-                index,
-                index2,
+                orgIdx,
+                dstIdx,
                 RoutingRequest(
                   originUTM = originCoord,
                   destinationUTM = destCoord,
@@ -82,52 +84,73 @@ class PeakSkimObserver(
       Future
         .sequence(
           requests.map {
-            case (index, index2, req) =>
+            case (orgIdx, dstIdx, req) =>
               akka.pattern
                 .ask(beamServices.beamRouter, req)
                 .mapTo[RoutingResponse]
-                .map(resp => (index, index2, resp))
+                .map(resp => (orgIdx, dstIdx, resp))
           }
         )
         .foreach(_.foreach {
-          case (index, index2, response) =>
-            val partialTrip = response.itineraries.head.legs
-            val theTrip = EmbodiedBeamTrip(
-              EmbodiedBeamLeg.dummyLegAt(
-                partialTrip.head.beamLeg.startTime,
-                Id.createVehicleId("dummy-body"),
-                false,
-                partialTrip.head.beamLeg.travelPath.startPoint.loc,
-                WALK,
-                dummyBodyVehicleType.id
-              ) +:
-              partialTrip :+
-              EmbodiedBeamLeg.dummyLegAt(
-                partialTrip.last.beamLeg.endTime,
-                Id.createVehicleId("dummy-body"),
-                true,
-                partialTrip.last.beamLeg.travelPath.endPoint.loc,
-                WALK,
-                dummyBodyVehicleType.id
-              )
-            )
-            val generalizedTime =
-              modeChoiceCalculator.getGeneralizedTimeOfTrip(theTrip, Some(attributesOfIndividual), None)
-            val generalizedCost = modeChoiceCalculator.getNonTimeCost(theTrip) + attributesOfIndividual
-              .getVOT(generalizedTime)
-            val energyConsumption = dummyCarVehicleType.primaryFuelConsumptionInJoulePerMeter * theTrip.legs
-              .map(_.beamLeg.travelPath.distanceInM)
-              .sum
-            log.debug(
-              s"Observing skim from ${beamServices.beamScenario.tazTreeMap
-                .getTAZ(theTrip.legs.head.beamLeg.travelPath.startPoint.loc)
-                .tazId} to ${beamServices.beamScenario.tazTreeMap.getTAZ(theTrip.legs.last.beamLeg.travelPath.endPoint.loc).tazId} takes ${generalizedTime} seconds"
-            )
-            beamSkimmer.observeTrip(theTrip, generalizedTime, generalizedCost, energyConsumption, true)
+          case (orgIdx, dstIdx, response) =>
+            response.itineraries.headOption match {
+              case Some(tripItin) =>
+                val partialTrip = tripItin.legs
+                val theTrip = EmbodiedBeamTrip(
+                  EmbodiedBeamLeg.dummyLegAt(
+                    partialTrip.head.beamLeg.startTime,
+                    Id.createVehicleId("dummy-body"),
+                    false,
+                    partialTrip.head.beamLeg.travelPath.startPoint.loc,
+                    WALK,
+                    dummyBodyVehicleType.id
+                  ) +:
+                  partialTrip :+
+                  EmbodiedBeamLeg.dummyLegAt(
+                    partialTrip.last.beamLeg.endTime,
+                    Id.createVehicleId("dummy-body"),
+                    true,
+                    partialTrip.last.beamLeg.travelPath.endPoint.loc,
+                    WALK,
+                    dummyBodyVehicleType.id
+                  )
+                )
+                val generalizedTime =
+                  modeChoiceCalculator.getGeneralizedTimeOfTrip(theTrip, Some(attributesOfIndividual), None)
+                val generalizedCost = modeChoiceCalculator.getNonTimeCost(theTrip) + attributesOfIndividual
+                  .getVOT(generalizedTime)
+                val energyConsumption = dummyCarVehicleType.primaryFuelConsumptionInJoulePerMeter * theTrip.legs
+                  .map(_.beamLeg.travelPath.distanceInM)
+                  .sum
+                log.debug(
+                  s"Observing skim from ${beamServices.beamScenario.tazTreeMap
+                    .getTAZ(theTrip.legs.head.beamLeg.travelPath.startPoint.loc)
+                    .tazId} to ${beamServices.beamScenario.tazTreeMap.getTAZ(theTrip.legs.last.beamLeg.travelPath.endPoint.loc).tazId} takes ${generalizedTime} seconds"
+                )
+                beamSkimmer.observeTripForTAZPair(
+                  tazs(orgIdx).tazId,
+                  tazs(dstIdx).tazId,
+                  theTrip,
+                  generalizedTime,
+                  generalizedCost,
+                  energyConsumption
+                )
+                self ! "success"
+              case None =>
+                self ! "failure"
+            }
         })
+      log.info(s"Total routing requests sent: ${requests.size}")
       endSegment("peak-skim-observer", "agentsim")
 
+    case "success" =>
+      successfullRoutes = successfullRoutes + 1
+
+    case "failure" =>
+      failedRoutes = failedRoutes + 1
+
     case Finish =>
+      log.info(s"$successfullRoutes successful routes and $failedRoutes failures")
       context.stop(self)
 
     case msg @ _ =>
