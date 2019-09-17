@@ -153,6 +153,10 @@ class UrbanSimScenarioLoader(
           (pId, getOptionDistUTMInMeters(personIdToWorkLocation.get(pId), Some(homeCoord)))
       }
 
+    logger.info(
+      s"Done mapping home/work distances for population"
+    )
+
     val scaleFactor = beamScenario.beamConfig.beam.agentsim.agents.vehicles.fractionOfInitialVehicleFleet
 
     val vehiclesAdjustment = VehiclesAdjustment.getVehicleAdjustment(beamScenario)
