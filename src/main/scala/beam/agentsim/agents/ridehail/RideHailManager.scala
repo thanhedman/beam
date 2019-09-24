@@ -387,7 +387,7 @@ class RideHailManager(
 
   beamServices.beamConfig.beam.agentsim.agents.rideHail.initialization.initType match {
     case "PROCEDURAL" =>
-      val averageOnDutyHoursPerDay = 5.1
+      val averageOnDutyHoursPerDay = 6.0
       val meanLogShiftDurationHours = 1.55
       val stdLogShiftDurationHours = 0.4
       var equivalentNumberOfDrivers = 0.0
