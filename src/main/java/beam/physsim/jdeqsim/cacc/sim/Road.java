@@ -306,9 +306,9 @@ public class Road extends org.matsim.core.mobsim.jdeqsim.Road {
              * (this logic was adapted to adhere to the C++ implementation)
              */
             double nextStuckTime=0;
+
             if (deadlockPreventionMessages_.size() > 0) {
-                nextStuckTime=deadlockPreventionMessages_.getLast().getMessageArrivalTime()
-                        + config.getSqueezeTime();
+                nextStuckTime=deadlockPreventionMessages_.getLast().getMessageArrivalTime() + config.getSqueezeTime();
 
             } else {
                 nextStuckTime=simTime
@@ -322,9 +322,18 @@ public class Road extends org.matsim.core.mobsim.jdeqsim.Road {
                 System.out.print("");
             }
 
+
+
             //System.out.print("enterRequest:" + link.getId() + "; vehicle:" + vehicle.getOwnerPerson().getId());
             //System.out.println("; vehicle.getCurrentLinkId():" + vehicle.getCurrentLinkId());
-            double timeToLeaveRoad=Math.min(Road.getRoad(vehicle.getCurrentLinkId()).latestTimeToLeaveRoad.get(vehicle),nextStuckTime);
+
+            double minTimeForNextDeadlockPreventionMessageTime=0;
+
+            if (deadlockPreventionMessages_.size() > 0) minTimeForNextDeadlockPreventionMessageTime=deadlockPreventionMessages_.getLast().getMessageArrivalTime()+0.0000000001; // ensures that deadlock prevention messages have increasing time stamps - this is assumped by original implementation around this
+
+
+
+            double timeToLeaveRoad=Math.max(Math.min(Road.getRoad(vehicle.getCurrentLinkId()).latestTimeToLeaveRoad.get(vehicle),nextStuckTime),minTimeForNextDeadlockPreventionMessageTime);
 
             deadlockPreventionMessages_.add(vehicle.scheduleDeadlockPreventionMessage(timeToLeaveRoad, this));
 
