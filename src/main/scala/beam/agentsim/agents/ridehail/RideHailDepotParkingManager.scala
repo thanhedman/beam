@@ -1,7 +1,6 @@
 package beam.agentsim.agents.ridehail
 
 import scala.util.{Failure, Random, Success, Try}
-
 import beam.agentsim.agents.choice.logit.MultinomialLogit
 import beam.agentsim.infrastructure.ParkingStall
 import beam.agentsim.infrastructure.charging.ChargingPointType
@@ -19,6 +18,7 @@ import beam.agentsim.infrastructure.parking.{
 }
 import beam.agentsim.infrastructure.taz.{TAZ, TAZTreeMap}
 import beam.router.BeamRouter.Location
+import beam.sim.Geofence
 import com.typesafe.scalalogging.LazyLogging
 import com.vividsolutions.jts.geom.Envelope
 
@@ -88,7 +88,8 @@ class RideHailDepotParkingManager(
     */
   def findDepot(
     locationUtm: Location,
-    parkingDuration: Double
+    parkingDuration: Double,
+    geofence: Option[Geofence]
   ): Option[ParkingStall] = {
 
     val parkingZoneSearchParams: ParkingZoneSearchParams =
@@ -146,7 +147,8 @@ class RideHailDepotParkingManager(
           parkingZoneSearchParams,
           parkingZoneFilterFunction,
           parkingZoneLocSamplingFunction,
-          parkingZoneMNLParamsFunction
+          parkingZoneMNLParamsFunction,
+          geofence
         )
       taz <- tazTreeMap.getTAZ(parkingStall.tazId)
     } yield {

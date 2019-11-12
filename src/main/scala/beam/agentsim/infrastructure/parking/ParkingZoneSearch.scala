@@ -1,8 +1,8 @@
 package beam.agentsim.infrastructure.parking
 
 import beam.agentsim.agents.choice.logit.{MultinomialLogit, UtilityFunctionOperation}
-import scala.util.{Failure, Random, Success, Try}
 
+import scala.util.{Failure, Random, Success, Try}
 import beam.agentsim.infrastructure.charging._
 import beam.agentsim.infrastructure.taz.TAZ
 import beam.router.BeamRouter.Location
@@ -10,10 +10,11 @@ import beam.sim.common.GeoUtils
 import com.vividsolutions.jts.geom.Envelope
 import org.matsim.api.core.v01.{Coord, Id}
 import org.matsim.core.utils.collections.QuadTree
+
 import scala.collection.JavaConverters._
 import scala.annotation.tailrec
-
 import beam.agentsim.infrastructure.ParkingStall
+import beam.sim.Geofence
 
 object ParkingZoneSearch {
 
@@ -133,7 +134,8 @@ object ParkingZoneSearch {
     params: ParkingZoneSearchParams,
     parkingZoneFilterFunction: ParkingZone => Boolean,
     parkingZoneLocSamplingFunction: ParkingZone => Coord,
-    parkingZoneMNLParamsFunction: ParkingAlternative => Map[ParkingMNL.Parameters, Double]
+    parkingZoneMNLParamsFunction: ParkingAlternative => Map[ParkingMNL.Parameters, Double],
+    geofence: Option[Geofence]
   ): Option[ParkingZoneSearchResult] = {
 
     // find zones
@@ -165,9 +167,11 @@ object ParkingZoneSearch {
             parkingZoneId       <- parkingZoneIds
             parkingZone         <- ParkingZone.getParkingZone(params.parkingZones, parkingZoneId)
           } yield {
-            // wrap ParkingZone in a ParkingAlternative
-            val isValidParkingZone: Boolean = parkingZoneFilterFunction(parkingZone)
             val stallLocation: Coord = parkingZoneLocSamplingFunction(parkingZone)
+            // wrap ParkingZone in a ParkingAlternative
+            val isValidParkingZone: Boolean = parkingZoneFilterFunction(parkingZone) && geofence.forall(
+              _.contains(stallLocation)
+            )
             val stallPriceInDollars: Double =
               parkingZone.pricingModel match {
                 case None => 0

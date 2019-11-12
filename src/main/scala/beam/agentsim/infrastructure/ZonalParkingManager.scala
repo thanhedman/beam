@@ -245,7 +245,8 @@ class ZonalParkingManager(
           parkingZoneSearchParams,
           parkingZoneFilterFunction,
           parkingZoneLocSamplingFunction,
-          parkingZoneMNLParamsFunction
+          parkingZoneMNLParamsFunction,
+          None
         ) match {
           case Some(result) =>
             result
