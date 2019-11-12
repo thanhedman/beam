@@ -10,16 +10,17 @@ import beam.router.BeamRouter.Location
 import beam.router.BeamSkimmer
 import beam.router.BeamSkimmer.Skim
 import beam.router.Modes.BeamMode
+import beam.sim.common.GeoUtils
 import beam.sim.{BeamServices, Geofence}
 import org.jgrapht.graph.{DefaultEdge, DefaultUndirectedWeightedGraph}
 import org.matsim.api.core.v01.Id
 import org.matsim.api.core.v01.population.Activity
 import org.matsim.core.population.PopulationUtils
 import org.matsim.core.utils.collections.QuadTree
+
 import scala.collection.JavaConverters._
 import scala.collection.immutable.List
 import scala.collection.mutable.ListBuffer
-
 import beam.sim.config.BeamConfig.Beam.Agentsim.Agents.RideHail.AllocationManager
 
 class AlonsoMoraPoolingAlgForRideHail(
@@ -161,6 +162,14 @@ class AlonsoMoraPoolingAlgForRideHail(
 
 object AlonsoMoraPoolingAlgForRideHail {
 
+  def checkDistance(r: MobilityRequest, schedule: List[MobilityRequest], searchRadius: Double): Boolean = {
+    schedule.foreach { s =>
+      if (GeoUtils.distFormula(r.activity.getCoord, s.activity.getCoord) <= searchRadius)
+        return true
+    }
+    false
+  }
+
   // a greedy assignment using a cost function
   def greedyAssignment(
     rTvG: RTVGraph,
@@ -168,8 +177,8 @@ object AlonsoMoraPoolingAlgForRideHail {
     solutionSpaceSizePerVehicle: Int
   ): List[(RideHailTrip, VehicleAndSchedule, Double)] = {
     import scala.collection.mutable.{ListBuffer => MListBuffer}
-    val Rok = MListBuffer.empty[CustomerRequest]
-    val Vok = MListBuffer.empty[VehicleAndSchedule]
+    val Rok = collection.mutable.HashSet.empty[CustomerRequest]
+    val Vok = collection.mutable.HashSet.empty[VehicleAndSchedule]
     val greedyAssignmentList = MListBuffer.empty[(RideHailTrip, VehicleAndSchedule, Double)]
     for (k <- maximumVehCapacity to 1 by -1) {
       rTvG
@@ -187,15 +196,15 @@ object AlonsoMoraPoolingAlgForRideHail {
                 .head
             )
             .asInstanceOf[VehicleAndSchedule]
-          val cost = trip.requests.size * trip.getSumOfDelaysAsFraction + (solutionSpaceSizePerVehicle - trip.requests.size) * 1.0
+          val cost = trip.requests.size * trip.sumOfDelaysAsFraction + (solutionSpaceSizePerVehicle - trip.requests.size) * 1.0
           (trip, vehicle, cost)
         }
         .toList
         .sortBy(_._3)
         .foreach {
           case (trip, vehicle, cost) if !(Vok contains vehicle) && !(trip.requests exists (r => Rok contains r)) =>
-            Rok.appendAll(trip.requests)
-            Vok.append(vehicle)
+            trip.requests.foreach(Rok.add)
+            Vok.add(vehicle)
             greedyAssignmentList.append((trip, vehicle, cost))
           case _ =>
         }
@@ -512,7 +521,7 @@ object AlonsoMoraPoolingAlgForRideHail {
     override def getId: String = requests.foldLeft(s"trip:") { case (c, x) => c + s"$x -> " }
     val sumOfDelays: Int = schedule.foldLeft(0) { case (c, r)              => c + (r.serviceTime - r.baselineNonPooledTime) }
 
-    val getSumOfDelaysAsFraction: Int = sumOfDelays / schedule.foldLeft(0) {
+    val sumOfDelaysAsFraction: Int = sumOfDelays / schedule.foldLeft(0) {
       case (c, r) => c + (r.upperBoundTime - r.baselineNonPooledTime)
     }
     override def toString: String =

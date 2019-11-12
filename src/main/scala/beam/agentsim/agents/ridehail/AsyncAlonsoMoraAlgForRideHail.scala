@@ -1,5 +1,6 @@
 package beam.agentsim.agents.ridehail
 
+import beam.agentsim.agents.{Dropoff, EnRoute, MobilityRequest, Pickup}
 import beam.agentsim.agents.ridehail.AlonsoMoraPoolingAlgForRideHail._
 import beam.router.BeamSkimmer
 import beam.router.Modes.BeamMode
@@ -35,6 +36,7 @@ class AsyncAlonsoMoraAlgForRideHail(
     val vertices = MListBuffer.empty[RTVGraphNode]
     val edges = MListBuffer.empty[(RTVGraphNode, RTVGraphNode)]
     val finalRequestsList = MListBuffer.empty[RideHailTrip]
+<<<<<<< HEAD
     val center = v.getRequestWithCurrentVehiclePosition.activity.getCoord
 
     var maxSolutionSpace = solutionSpaceSizePerVehicle
@@ -42,8 +44,12 @@ class AsyncAlonsoMoraAlgForRideHail(
       maxSolutionSpace = solutionSpaceSizePerVehicle - v.getNoPassengers
     }
 
+=======
+    val requestWithCurrentVehiclePosition = v.getRequestWithCurrentVehiclePosition
+    val center = requestWithCurrentVehiclePosition.activity.getCoord
+>>>>>>> origin/production-sfbay-develop
     val searchRadius = waitingTimeInSec * BeamSkimmer.speedMeterPerSec(BeamMode.CAV)
-    val requests = v.geofence match {
+    var requests = v.geofence match {
       case Some(gf) =>
         val gfCenter = new Coord(gf.geofenceX, gf.geofenceY)
         spatialDemand
@@ -58,8 +64,13 @@ class AsyncAlonsoMoraAlgForRideHail(
       case _ =>
         spatialDemand.getDisk(center.getX, center.getY, searchRadius).asScala.toList
     }
+    requests = requests.sortBy(r => GeoUtils.minkowskiDistFormula(center, r.pickup.activity.getCoord))
+    if (requestWithCurrentVehiclePosition.tag == EnRoute) {
+      val i = v.schedule.indexWhere(_.tag == EnRoute)
+      val nextTasks = v.schedule.slice(0, i)
+      requests = requests.filter(r => AlonsoMoraPoolingAlgForRideHail.checkDistance(r.dropoff, nextTasks, searchRadius))
+    }
     requests
-      .sortBy(x => GeoUtils.minkowskiDistFormula(center, x.pickup.activity.getCoord))
       .take(solutionSpaceSizePerVehicle) foreach (
       r =>
         AlonsoMoraPoolingAlgForRideHail.getRidehailSchedule(

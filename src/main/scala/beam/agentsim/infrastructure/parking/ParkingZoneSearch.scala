@@ -1,6 +1,6 @@
 package beam.agentsim.infrastructure.parking
 
-import beam.agentsim.agents.choice.logit.MultinomialLogit
+import beam.agentsim.agents.choice.logit.{MultinomialLogit, UtilityFunctionOperation}
 import scala.util.{Failure, Random, Success, Try}
 
 import beam.agentsim.infrastructure.charging._
@@ -54,7 +54,7 @@ object ParkingZoneSearch {
     *
     * @param destinationUTM destination of inquiry
     * @param parkingDuration duration of the activity agent wants to park for
-    * @param multinomialLogit utility function which evaluates [[ParkingAlternative]]s
+    * @param parkingMNLConfig utility function which evaluates [[ParkingAlternative]]s
     * @param zoneSearchTree a nested map lookup of [[ParkingZone]]s
     * @param parkingZones the stored state of all [[ParkingZone]]s
     * @param zoneQuadTree [[ParkingZone]]s are associated with a TAZ, which are themselves stored in this Quad Tree
@@ -64,7 +64,7 @@ object ParkingZoneSearch {
   case class ParkingZoneSearchParams(
     destinationUTM: Location,
     parkingDuration: Double,
-    multinomialLogit: MultinomialLogit[ParkingZoneSearch.ParkingAlternative, String],
+    parkingMNLConfig: ParkingMNL.ParkingMNLConfig,
     zoneSearchTree: ZoneSearchTree[TAZ],
     parkingZones: Array[ParkingZone],
     zoneQuadTree: QuadTree[TAZ],
@@ -83,6 +83,7 @@ object ParkingZoneSearch {
     parkingStall: ParkingStall,
     parkingZone: ParkingZone,
     parkingZoneIdsSeen: List[Int] = List.empty,
+    parkingZonesSampled: List[(Int, Option[ChargingPointType], ParkingType, Double)] = List.empty,
     iterations: Int = 1
   )
 
@@ -94,14 +95,14 @@ object ParkingZoneSearch {
     * @param parkingType parking type of the alternative
     * @param parkingZone parking zone of the alternative
     * @param coord location sampled for this alternative
-    * @param cost expected cost for using this alternative
+    * @param costInDollars expected cost for using this alternative
     */
   case class ParkingAlternative(
     taz: TAZ,
     parkingType: ParkingType,
     parkingZone: ParkingZone,
     coord: Coord,
-    cost: Double
+    costInDollars: Double
   )
 
   /**
@@ -114,7 +115,7 @@ object ParkingZoneSearch {
   private[ParkingZoneSearch] case class ParkingSearchAlternative(
     isValidAlternative: Boolean,
     parkingAlternative: ParkingAlternative,
-    utilityParameters: Map[String, Double]
+    utilityParameters: Map[ParkingMNL.Parameters, Double]
   )
 
   /**
@@ -132,7 +133,7 @@ object ParkingZoneSearch {
     params: ParkingZoneSearchParams,
     parkingZoneFilterFunction: ParkingZone => Boolean,
     parkingZoneLocSamplingFunction: ParkingZone => Coord,
-    parkingZoneMNLParamsFunction: ParkingAlternative => Map[String, Double]
+    parkingZoneMNLParamsFunction: ParkingAlternative => Map[ParkingMNL.Parameters, Double]
   ): Option[ParkingZoneSearchResult] = {
 
     // find zones
@@ -141,6 +142,7 @@ object ParkingZoneSearch {
       thisInnerRadius: Double,
       thisOuterRadius: Double,
       parkingZoneIdsSeen: List[Int] = List.empty,
+      parkingZoneIdsSampled: List[(Int, Option[ChargingPointType], ParkingType, Double)] = List.empty,
       iterations: Int = 1
     ): Option[ParkingZoneSearchResult] = {
       if (thisInnerRadius > config.searchMaxRadius) None
@@ -166,15 +168,15 @@ object ParkingZoneSearch {
             // wrap ParkingZone in a ParkingAlternative
             val isValidParkingZone: Boolean = parkingZoneFilterFunction(parkingZone)
             val stallLocation: Coord = parkingZoneLocSamplingFunction(parkingZone)
-            val stallPrice: Double =
+            val stallPriceInDollars: Double =
               parkingZone.pricingModel match {
                 case None => 0
                 case Some(pricingModel) =>
                   PricingModel.evaluateParkingTicket(pricingModel, params.parkingDuration.toInt)
               }
             val parkingAlternative: ParkingAlternative =
-              ParkingAlternative(zone, parkingType, parkingZone, stallLocation, stallPrice)
-            val parkingAlternativeUtility: Map[String, Double] =
+              ParkingAlternative(zone, parkingType, parkingZone, stallLocation, stallPriceInDollars)
+            val parkingAlternativeUtility: Map[ParkingMNL.Parameters, Double] =
               parkingZoneMNLParamsFunction(parkingAlternative)
             ParkingSearchAlternative(
               isValidParkingZone,
@@ -186,36 +188,59 @@ object ParkingZoneSearch {
 
         val validParkingAlternatives: Int = alternatives.count { _.isValidAlternative }
         if (validParkingAlternatives == 0) {
-          _search(thisOuterRadius, thisOuterRadius * config.searchExpansionFactor, parkingZoneIdsSeen, iterations + 1)
+          _search(
+            thisOuterRadius,
+            thisOuterRadius * config.searchExpansionFactor,
+            parkingZoneIdsSeen,
+            parkingZoneIdsSampled,
+            iterations + 1
+          )
         } else {
 
           // remove any invalid parking alternatives
-          val alternativesToSample: Map[ParkingAlternative, Map[String, Double]] =
+          val alternativesToSample: Map[ParkingAlternative, Map[ParkingMNL.Parameters, Double]] =
             alternatives.flatMap { a =>
               if (a.isValidAlternative)
                 Some { a.parkingAlternative -> a.utilityParameters } else
                 None
             }.toMap
 
-          params.multinomialLogit.sampleAlternative(alternativesToSample, params.random).map { result =>
-            val ParkingAlternative(taz, parkingType, parkingZone, coordinate, cost) = result.alternativeType
+          val mnl: MultinomialLogit[ParkingAlternative, ParkingMNL.Parameters] =
+            new MultinomialLogit(
+              Map.empty,
+              params.parkingMNLConfig
+            )
+
+          mnl.sampleAlternative(alternativesToSample, params.random).map { result =>
+            val ParkingAlternative(taz, parkingType, parkingZone, coordinate, costInDollars) = result.alternativeType
 
             // create a new stall instance. you win!
             val parkingStall = ParkingStall(
               taz.tazId,
               parkingZone.parkingZoneId,
               coordinate,
-              cost,
+              costInDollars.toDouble,
               parkingZone.chargingPointType,
               parkingZone.pricingModel,
               parkingType
             )
 
             val theseParkingZoneIds: List[Int] = alternatives.map { _.parkingAlternative.parkingZone.parkingZoneId }
+            val theseSampledParkingZoneIds: List[(Int, Option[ChargingPointType], ParkingType, Double)] =
+              alternativesToSample.map { altWithParams =>
+                (
+                  altWithParams._1.parkingZone.parkingZoneId,
+                  altWithParams._1.parkingZone.chargingPointType,
+                  altWithParams._1.parkingType,
+                  altWithParams._1.costInDollars
+                )
+
+              }.toList
             ParkingZoneSearchResult(
               parkingStall,
               parkingZone,
               theseParkingZoneIds ++ parkingZoneIdsSeen,
+              theseSampledParkingZoneIds ++ parkingZoneIdsSampled,
               iterations = iterations
             )
           }
