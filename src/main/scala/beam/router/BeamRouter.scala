@@ -23,6 +23,7 @@ import akka.util.Timeout
 import beam.agentsim.agents.vehicles.BeamVehicleType
 import beam.agentsim.agents.vehicles.VehicleProtocol.StreetVehicle
 import beam.agentsim.events.SpaceTime
+import beam.analysis.RoutingResponseEvent
 import beam.router.BeamRouter._
 import beam.router.Modes.BeamMode
 import beam.router.gtfs.FareCalculator
@@ -38,6 +39,7 @@ import com.conveyal.r5.transit.TransportNetwork
 import com.romix.akka.serialization.kryo.KryoSerializer
 import org.matsim.api.core.v01.network.Network
 import org.matsim.api.core.v01.{Coord, Id, Scenario}
+import org.matsim.core.api.experimental.events.EventsManager
 import org.matsim.core.population.routes.{NetworkRoute, RouteUtils}
 import org.matsim.core.router.util.TravelTime
 import org.matsim.vehicles.{Vehicle, Vehicles}
@@ -58,7 +60,8 @@ class BeamRouter(
   scenario: Scenario,
   transitVehicles: Vehicles,
   fareCalculator: FareCalculator,
-  tollCalculator: TollCalculator
+  tollCalculator: TollCalculator,
+  eventsManager: EventsManager
 ) extends Actor
     with Stash
     with ActorLogging {
@@ -211,6 +214,7 @@ class BeamRouter(
         sendWorkTo(worker, work, originalSender, receivePath = "GimmeWork")
       }
     case routingResp: RoutingResponse =>
+      eventsManager.processEvent(RoutingResponseEvent(routingResp))
       pipeResponseToOriginalSender(routingResp)
       logIfResponseTookExcessiveTime(routingResp.requestId)
     case routingFailure: RoutingFailure =>
@@ -432,7 +436,8 @@ object BeamRouter {
     streetVehicles: IndexedSeq[StreetVehicle],
     attributesOfIndividual: Option[AttributesOfIndividual] = None,
     streetVehiclesUseIntermodalUse: IntermodalUse = Access,
-    requestId: Int = IdGeneratorImpl.nextId
+    requestId: Int = IdGeneratorImpl.nextId,
+    initiatedFrom: String
   ) {
     lazy val timeValueOfMoney
       : Double = attributesOfIndividual.fold(360.0)(3600.0 / _.valueOfTime) // 360 seconds per Dollar, i.e. 10$/h value of travel time savings
@@ -450,13 +455,14 @@ object BeamRouter {
     */
   case class RoutingResponse(
     itineraries: Seq[EmbodiedBeamTrip],
-    requestId: Int
+    requestId: Int,
+    request: Option[RoutingRequest]
   )
 
   case class RoutingFailure(cause: Throwable, requestId: Int)
 
   object RoutingResponse {
-    val dummyRoutingResponse = Some(RoutingResponse(Vector(), IdGeneratorImpl.nextId))
+    val dummyRoutingResponse = Some(RoutingResponse(Vector(), IdGeneratorImpl.nextId, None))
   }
 
   def props(
@@ -468,7 +474,8 @@ object BeamRouter {
     scenario: Scenario,
     transitVehicles: Vehicles,
     fareCalculator: FareCalculator,
-    tollCalculator: TollCalculator
+    tollCalculator: TollCalculator,
+    eventsManager: EventsManager
   ) = {
     checkForConsistentTimeZoneOffsets(beamScenario.dates, transportNetwork)
 
@@ -482,7 +489,8 @@ object BeamRouter {
         scenario,
         transitVehicles,
         fareCalculator,
-        tollCalculator
+        tollCalculator,
+        eventsManager
       )
     )
   }
