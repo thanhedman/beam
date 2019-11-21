@@ -8,12 +8,14 @@ import beam.agentsim.agents.vehicles.VehicleProtocol.StreetVehicle
 import beam.agentsim.events.SpaceTime
 import beam.router.BeamRouter.{RoutingRequest, RoutingResponse}
 import beam.router.Modes.BeamMode.CAR
+import beam.sim.BeamServices
 import org.matsim.api.core.v01.Id
 import org.matsim.vehicles.Vehicle
 
 import scala.collection.mutable
 
-class Pooling(val rideHailManager: RideHailManager) extends RideHailResourceAllocationManager(rideHailManager) {
+class Pooling(val rideHailManager: RideHailManager, beamServices: BeamServices)
+    extends RideHailResourceAllocationManager(rideHailManager) {
 
   val tempPickDropStore: mutable.Map[Int, MobilityRequest] = mutable.Map()
 
@@ -34,7 +36,8 @@ class Pooling(val rideHailManager: RideHailManager) extends RideHailResourceAllo
 
   override def allocateVehiclesToCustomers(
     tick: Int,
-    vehicleAllocationRequest: AllocationRequests
+    vehicleAllocationRequest: AllocationRequests,
+    beamServices: BeamServices
   ): AllocationResponse = {
     logger.info(s"buffer size: ${vehicleAllocationRequest.requests.size}")
     var toPool: Set[RideHailRequest] = Set()
@@ -82,7 +85,7 @@ class Pooling(val rideHailManager: RideHailManager) extends RideHailResourceAllo
     toPool.grouped(2).foreach { twoToPool =>
       twoToPool.size match {
         case 1 =>
-          Pooling.serveOneRequest(twoToPool.head, tick, alreadyAllocated, rideHailManager) match {
+          Pooling.serveOneRequest(twoToPool.head, tick, alreadyAllocated, rideHailManager, beamServices) match {
             case res @ RoutingRequiredToAllocateVehicle(_, routes) =>
               allocResponses = allocResponses :+ res
               alreadyAllocated = alreadyAllocated + routes.head.streetVehicles.head.id
@@ -94,10 +97,11 @@ class Pooling(val rideHailManager: RideHailManager) extends RideHailResourceAllo
           val routingResponses1 = vehicleAllocationRequest.requests(request1)
           val request2 = twoToPool.last
           val routingResponses2 = vehicleAllocationRequest.requests(request2)
+          val request1Updated = RideHailRequest.handleImpression(request1, beamServices)
           rideHailManager.vehicleManager
             .getClosestIdleVehiclesWithinRadiusByETA(
-              request1.pickUpLocationUTM,
-              request1.destinationUTM,
+              request1Updated.pickUpLocationUTM,
+              request1Updated.destinationUTM,
               rideHailManager.radiusInMeters,
               tick,
               excludeRideHailVehicles = alreadyAllocated
@@ -105,8 +109,8 @@ class Pooling(val rideHailManager: RideHailManager) extends RideHailResourceAllo
             case Some(agentETA) =>
               alreadyAllocated = alreadyAllocated + agentETA.agentLocation.vehicleId
               allocResponses = allocResponses :+ RoutingRequiredToAllocateVehicle(
-                request1.addSubRequest(request2),
-                createRoutingRequestsForPooledTrip(List(request1, request2), agentETA.agentLocation, tick)
+                request1Updated.addSubRequest(request2),
+                createRoutingRequestsForPooledTrip(List(request1Updated, request2), agentETA.agentLocation, tick)
               )
               // When we group request 2 with 1 we need to remove it from the buffer
               // so it won't be processed again (it's fate is now tied to request 1)
@@ -205,27 +209,29 @@ object Pooling {
     request: RideHailRequest,
     pickUpTime: Int,
     alreadyAllocated: Set[Id[Vehicle]],
-    rideHailManager: RideHailManager
+    rideHailManager: RideHailManager,
+    beamServices: BeamServices
   ) = {
+    val requestWithUpdatedLoc = RideHailRequest.handleImpression(request, beamServices)
     rideHailManager.vehicleManager
       .getClosestIdleVehiclesWithinRadiusByETA(
-        request.pickUpLocationUTM,
-        request.destinationUTM,
+        requestWithUpdatedLoc.pickUpLocationUTM,
+        requestWithUpdatedLoc.destinationUTM,
         rideHailManager.radiusInMeters,
         pickUpTime,
         excludeRideHailVehicles = alreadyAllocated
       ) match {
       case Some(agentETA) =>
         RoutingRequiredToAllocateVehicle(
-          request,
+          requestWithUpdatedLoc,
           rideHailManager.createRoutingRequestsToCustomerAndDestination(
             pickUpTime,
-            request,
+            requestWithUpdatedLoc,
             agentETA.agentLocation
           )
         )
       case None =>
-        NoVehicleAllocated(request)
+        NoVehicleAllocated(requestWithUpdatedLoc)
     }
   }
 

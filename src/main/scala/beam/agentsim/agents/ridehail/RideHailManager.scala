@@ -489,7 +489,7 @@ class RideHailManager(
   log.info("Initialized {} ride hailing agents", numRideHailAgents)
 
   private val rideHailResourceAllocationManager = RideHailResourceAllocationManager(
-    beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.name,
+    beamServices,
     this
   )
 
@@ -1533,7 +1533,7 @@ class RideHailManager(
     var allRoutesRequired: Vector[RoutingRequest] = Vector()
     log.debug("findAllocationsAndProcess @ {}", tick)
 
-    rideHailResourceAllocationManager.allocateVehiclesToCustomers(tick) match {
+    rideHailResourceAllocationManager.allocateVehiclesToCustomers(tick, beamServices) match {
       case VehicleAllocations(allocations) =>
         allocations.foreach { allocation =>
           allocation match {

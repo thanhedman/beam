@@ -7,6 +7,7 @@ import beam.agentsim.agents.ridehail.{RideHailManager, RideHailRequest}
 import beam.agentsim.agents.{Dropoff, MobilityRequest, Pickup, Relocation}
 import beam.agentsim.infrastructure.ParkingStall
 import beam.router.BeamRouter.{Location, RoutingRequest, RoutingResponse}
+import beam.sim.BeamServices
 import com.typesafe.scalalogging.LazyLogging
 import org.matsim.api.core.v01.Id
 import org.matsim.api.core.v01.population.Person
@@ -80,8 +81,9 @@ abstract class RideHailResourceAllocationManager(private val rideHailManager: Ri
   }
   def isBufferEmpty = bufferedRideHailRequests.isEmpty
 
-  def allocateVehiclesToCustomers(tick: Int): AllocationResponse = {
-    var allocationResponse = allocateVehiclesToCustomers(tick, new AllocationRequests(bufferedRideHailRequests))
+  def allocateVehiclesToCustomers(tick: Int, beamServices: BeamServices): AllocationResponse = {
+    var allocationResponse =
+      allocateVehiclesToCustomers(tick, new AllocationRequests(bufferedRideHailRequests), beamServices)
     allocationResponse match {
       case VehicleAllocations(allocations) =>
         allocations.foreach { alloc =>
@@ -117,39 +119,45 @@ abstract class RideHailResourceAllocationManager(private val rideHailManager: Ri
    * The above process flow is identical for a batch of multiple requests, except that now the AllocationRequests and the VehicleAllocations
    * objects contain multiple requests and responses.
    */
-  def allocateVehiclesToCustomers(tick: Int, vehicleAllocationRequest: AllocationRequests): AllocationResponse = {
+  def allocateVehiclesToCustomers(
+    tick: Int,
+    vehicleAllocationRequest: AllocationRequests,
+    beamServices: BeamServices
+  ): AllocationResponse = {
     // closest request
     var alreadyAllocated: Set[Id[Vehicle]] = Set()
     val allocResponses = vehicleAllocationRequest.requests.map {
       case (request, routingResponses) if (routingResponses.isEmpty) =>
+        val requestWithUpdatedLoc = RideHailRequest.handleImpression(request, beamServices)
         rideHailManager.vehicleManager
           .getClosestIdleVehiclesWithinRadiusByETA(
-            request.pickUpLocationUTM,
-            request.destinationUTM,
+            requestWithUpdatedLoc.pickUpLocationUTM,
+            requestWithUpdatedLoc.destinationUTM,
             rideHailManager.radiusInMeters,
             tick
           ) match {
           case Some(agentETA) =>
             val routeRequired = RoutingRequiredToAllocateVehicle(
-              request,
+              requestWithUpdatedLoc,
               rideHailManager.createRoutingRequestsToCustomerAndDestination(
                 tick,
-                request,
+                requestWithUpdatedLoc,
                 agentETA.agentLocation
               )
             )
             routeRequired
           case None =>
-            NoVehicleAllocated(request)
+            NoVehicleAllocated(requestWithUpdatedLoc)
         }
       // The following if condition ensures we actually got routes back in all cases
       case (request, routingResponses) if routingResponses.find(_.itineraries.isEmpty).isDefined =>
         NoVehicleAllocated(request)
       case (request, routingResponses) =>
+        val requestWithUpdatedLoc = RideHailRequest.handleImpression(request, beamServices)
         rideHailManager.vehicleManager
           .getClosestIdleVehiclesWithinRadiusByETA(
-            request.pickUpLocationUTM,
-            request.destinationUTM,
+            requestWithUpdatedLoc.pickUpLocationUTM,
+            requestWithUpdatedLoc.destinationUTM,
             rideHailManager.radiusInMeters,
             tick,
             excludeRideHailVehicles = alreadyAllocated
@@ -159,16 +167,20 @@ abstract class RideHailResourceAllocationManager(private val rideHailManager: Ri
             val schedule = List(
               MobilityRequest.simpleRequest(
                 Relocation,
-                Some(request.customer),
+                Some(requestWithUpdatedLoc.customer),
                 routingResponses.head.itineraries.head.legs.headOption
               ),
               MobilityRequest
-                .simpleRequest(Pickup, Some(request.customer), routingResponses.last.itineraries.head.legs.headOption),
-              MobilityRequest.simpleRequest(Dropoff, Some(request.customer), None)
+                .simpleRequest(
+                  Pickup,
+                  Some(requestWithUpdatedLoc.customer),
+                  routingResponses.last.itineraries.head.legs.headOption
+                ),
+              MobilityRequest.simpleRequest(Dropoff, Some(requestWithUpdatedLoc.customer), None)
             )
-            VehicleMatchedToCustomers(request, agentETA.agentLocation, schedule)
+            VehicleMatchedToCustomers(requestWithUpdatedLoc, agentETA.agentLocation, schedule)
           case None =>
-            NoVehicleAllocated(request)
+            NoVehicleAllocated(requestWithUpdatedLoc)
         }
     }.toVector
     VehicleAllocations(allocResponses)
@@ -264,9 +276,10 @@ object RideHailResourceAllocationManager {
   val DUMMY_DISPATCH_WITH_BUFFERING = "DUMMY_DISPATCH_WITH_BUFFERING"
 
   def apply(
-    allocationManager: String,
+    beamServices: BeamServices,
     rideHailManager: RideHailManager
   ): RideHailResourceAllocationManager = {
+    val allocationManager = beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.name
     allocationManager match {
       case RideHailResourceAllocationManager.DEFAULT_MANAGER =>
         new DefaultRideHailResourceAllocationManager(rideHailManager)
@@ -274,9 +287,9 @@ object RideHailResourceAllocationManager {
 //        new EVFleetAllocationManager(rideHailManager)
         new DefaultRideHailResourceAllocationManager(rideHailManager)
       case RideHailResourceAllocationManager.POOLING =>
-        new Pooling(rideHailManager)
+        new Pooling(rideHailManager, beamServices)
       case RideHailResourceAllocationManager.POOLING_ALONSO_MORA =>
-        new PoolingAlonsoMora(rideHailManager)
+        new PoolingAlonsoMora(rideHailManager, beamServices)
       case classFullName =>
         try {
           Class
