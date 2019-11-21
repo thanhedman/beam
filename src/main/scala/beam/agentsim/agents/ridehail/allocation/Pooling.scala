@@ -227,7 +227,8 @@ object Pooling {
           rideHailManager.createRoutingRequestsToCustomerAndDestination(
             pickUpTime,
             requestWithUpdatedLoc,
-            agentETA.agentLocation
+            agentETA.agentLocation,
+            this.getClass.getSimpleName + "#" + "serveOneRequest"
           )
         )
       case None =>

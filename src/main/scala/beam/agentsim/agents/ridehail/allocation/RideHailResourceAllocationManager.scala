@@ -142,7 +142,8 @@ abstract class RideHailResourceAllocationManager(private val rideHailManager: Ri
               rideHailManager.createRoutingRequestsToCustomerAndDestination(
                 tick,
                 requestWithUpdatedLoc,
-                agentETA.agentLocation
+                agentETA.agentLocation,
+                this.getClass.getSimpleName + "#" + "allocateVehiclesToCustomers"
               )
             )
             routeRequired

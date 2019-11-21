@@ -1211,7 +1211,8 @@ class RideHailManager(
         val routingRequests = createRoutingRequestsToCustomerAndDestination(
           inquiryWithUpdatedLoc.departAt,
           inquiryWithUpdatedLoc,
-          agentLocation
+          agentLocation,
+          this.getClass.getSimpleName + "#" + "handleRideHailInquiry"
         )
         routingRequests.foreach(
           rReq => routeRequestIdToRideHailRequestId.put(rReq.requestId, inquiryWithUpdatedLoc.requestId)
@@ -1237,7 +1238,8 @@ class RideHailManager(
   def createRoutingRequestsToCustomerAndDestination(
     requestTime: Int,
     request: RideHailRequest,
-    rideHailLocation: RideHailAgentLocation
+    rideHailLocation: RideHailAgentLocation,
+    invokedFrom: String = ""
   ): List[RoutingRequest] = {
 
     val pickupSpaceTime = SpaceTime((request.pickUpLocationUTM, request.departAt))
@@ -1260,7 +1262,8 @@ class RideHailManager(
       requestTime,
       withTransit = false,
       Vector(rideHailVehicleAtOrigin),
-      initiatedFrom = s"RideHailManager: createRoutingRequestsToCustomerAndDestination (rideHailAgent2Customer)"
+      initiatedFrom =
+        s"RideHailManager: createRoutingRequestsToCustomerAndDestination (rideHailAgent2Customer), invoked from : $invokedFrom"
     )
 // route from customer to destination
     val rideHail2Destination = RoutingRequest(
@@ -1269,7 +1272,8 @@ class RideHailManager(
       requestTime,
       withTransit = false,
       Vector(rideHailVehicleAtPickup),
-      initiatedFrom = s"RideHailManager: createRoutingRequestsToCustomerAndDestination (rideHail2Destination)"
+      initiatedFrom =
+        s"RideHailManager: createRoutingRequestsToCustomerAndDestination (rideHail2Destination), invoked from : $invokedFrom"
     )
 
     List(rideHailAgent2Customer, rideHail2Destination)
