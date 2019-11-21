@@ -34,12 +34,13 @@ abstract class RideHailResourceAllocationManager(private val rideHailManager: Ri
    * travel time increase here and not a maximum increase in order to allow the passengers make long-term
    * rational choices about mode that reflect the true travel time cost of pooling.
    */
-  def respondToInquiry(inquiry: RideHailRequest): InquiryResponse = {
+  def respondToInquiry(inquiry: RideHailRequest, beamServices: BeamServices): InquiryResponse = {
     rideHailManager.vehicleManager.getClosestIdleVehiclesWithinRadiusByETA(
       inquiry.pickUpLocationUTM,
       inquiry.destinationUTM,
       rideHailManager.radiusInMeters,
-      inquiry.departAt
+      inquiry.departAt,
+      beamServices
     ) match {
       case Some(agentETA) =>
         SingleOccupantQuoteAndPoolingInfo(agentETA.agentLocation, None)
@@ -134,7 +135,8 @@ abstract class RideHailResourceAllocationManager(private val rideHailManager: Ri
             requestWithUpdatedLoc.pickUpLocationUTM,
             requestWithUpdatedLoc.destinationUTM,
             rideHailManager.radiusInMeters,
-            tick
+            tick,
+            beamServices
           ) match {
           case Some(agentETA) =>
             val routeRequired = RoutingRequiredToAllocateVehicle(
@@ -161,6 +163,7 @@ abstract class RideHailResourceAllocationManager(private val rideHailManager: Ri
             requestWithUpdatedLoc.destinationUTM,
             rideHailManager.radiusInMeters,
             tick,
+            beamServices,
             excludeRideHailVehicles = alreadyAllocated
           ) match {
           case Some(agentETA) =>

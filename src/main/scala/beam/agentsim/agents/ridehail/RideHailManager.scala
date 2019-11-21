@@ -1197,7 +1197,7 @@ class RideHailManager(
     )
     val inquiryWithUpdatedLoc =
       inquiry.copy(destinationUTM = destLocUpdatedUTM, pickUpLocationUTM = pickUpLocUpdatedUTM)
-    rideHailResourceAllocationManager.respondToInquiry(inquiryWithUpdatedLoc) match {
+    rideHailResourceAllocationManager.respondToInquiry(inquiryWithUpdatedLoc, beamServices) match {
       case NoVehiclesAvailable =>
         log.debug("{} -- NoVehiclesAvailable", inquiryWithUpdatedLoc.requestId)
         inquiryWithUpdatedLoc.customer.personRef ! RideHailResponse(

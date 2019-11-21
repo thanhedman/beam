@@ -8,7 +8,7 @@ import beam.agentsim.agents.vehicles.VehicleProtocol.StreetVehicle
 import beam.agentsim.events.SpaceTime
 import beam.router.BeamRouter.Location
 import beam.router.Modes.BeamMode.CAR
-import beam.sim.Geofence
+import beam.sim.{BeamServices, Geofence}
 import beam.sim.common.GeoUtils
 import com.typesafe.scalalogging.LazyLogging
 import com.vividsolutions.jts.geom.Envelope
@@ -112,6 +112,7 @@ class RideHailVehicleManager(val rideHailManager: RideHailManager, boundingBox: 
     dropoffLocation: Coord,
     radius: Double,
     customerRequestTime: Long,
+    beamServices: BeamServices,
     excludeRideHailVehicles: Set[Id[Vehicle]] = Set(),
     secondsPerEuclideanMeterFactor: Double = 0.1 // (~13.4m/s)^-1 * 1.4
   ): Option[RideHailAgentETA] = {
@@ -121,14 +122,18 @@ class RideHailVehicleManager(val rideHailManager: RideHailManager, boundingBox: 
       .asScala
       .view
       .filter { x =>
+        val geofenceUpdated: Option[Geofence] = x.geofence.map { gf =>
+          val newCoords = beamServices.geo.wgs2Utm(
+            beamServices.geo.snapToR5Edge(
+              beamServices.beamScenario.transportNetwork.streetLayer,
+              beamServices.geo.utm2Wgs(new Coord(gf.geofenceX, gf.geofenceY))
+            )
+          )
+          gf.copy(geofenceX = newCoords.getX, geofenceY = newCoords.getY)
+        }
         idleRideHailVehicles.contains(x.vehicleId) && !excludeRideHailVehicles.contains(x.vehicleId) &&
-        (x.geofence.isEmpty || (GeoUtils.distFormula(
-          pickupLocation,
-          new Coord(x.geofence.get.geofenceX, x.geofence.get.geofenceY)
-        ) <= x.geofence.get.geofenceRadius && GeoUtils.distFormula(
-          dropoffLocation,
-          new Coord(x.geofence.get.geofenceX, x.geofence.get.geofenceY)
-        ) <= x.geofence.get.geofenceRadius))
+        (geofenceUpdated.isEmpty || ((geofenceUpdated.isDefined && geofenceUpdated.get.contains(pickupLocation)) && (geofenceUpdated.isDefined && geofenceUpdated.get
+          .contains(dropoffLocation))))
       }
 
     var end = System.currentTimeMillis()

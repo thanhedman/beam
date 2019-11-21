@@ -19,13 +19,14 @@ class Pooling(val rideHailManager: RideHailManager, beamServices: BeamServices)
 
   val tempPickDropStore: mutable.Map[Int, MobilityRequest] = mutable.Map()
 
-  override def respondToInquiry(inquiry: RideHailRequest): InquiryResponse = {
+  override def respondToInquiry(inquiry: RideHailRequest, beamServices: BeamServices): InquiryResponse = {
     rideHailManager.vehicleManager
       .getClosestIdleVehiclesWithinRadiusByETA(
         inquiry.pickUpLocationUTM,
         inquiry.destinationUTM,
         rideHailManager.radiusInMeters,
-        inquiry.departAt
+        inquiry.departAt,
+        beamServices
       ) match {
       case Some(agentETA) =>
         SingleOccupantQuoteAndPoolingInfo(agentETA.agentLocation, Some(PoolingInfo(1.1, 0.6)))
@@ -104,6 +105,7 @@ class Pooling(val rideHailManager: RideHailManager, beamServices: BeamServices)
               request1Updated.destinationUTM,
               rideHailManager.radiusInMeters,
               tick,
+              beamServices,
               excludeRideHailVehicles = alreadyAllocated
             ) match {
             case Some(agentETA) =>
@@ -219,6 +221,7 @@ object Pooling {
         requestWithUpdatedLoc.destinationUTM,
         rideHailManager.radiusInMeters,
         pickUpTime,
+        beamServices,
         excludeRideHailVehicles = alreadyAllocated
       ) match {
       case Some(agentETA) =>

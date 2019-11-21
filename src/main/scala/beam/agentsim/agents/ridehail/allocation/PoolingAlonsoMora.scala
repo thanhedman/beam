@@ -37,13 +37,14 @@ class PoolingAlonsoMora(val rideHailManager: RideHailManager, beamServices: Beam
     classOf[BeamVehicleType]
   )
 
-  override def respondToInquiry(inquiry: RideHailRequest): InquiryResponse = {
+  override def respondToInquiry(inquiry: RideHailRequest, beamServices: BeamServices): InquiryResponse = {
     rideHailManager.vehicleManager
       .getClosestIdleVehiclesWithinRadiusByETA(
         inquiry.pickUpLocationUTM,
         inquiry.destinationUTM,
         rideHailManager.radiusInMeters,
-        inquiry.departAt
+        inquiry.departAt,
+        beamServices
       ) match {
       case Some(agentETA) =>
         val timeCostFactors = rideHailManager.beamSkimmer.getRideHailPoolingTimeAndCostRatios(
