@@ -114,7 +114,8 @@ class RideHailVehicleManager(val rideHailManager: RideHailManager, boundingBox: 
     customerRequestTime: Long,
     beamServices: BeamServices,
     excludeRideHailVehicles: Set[Id[Vehicle]] = Set(),
-    secondsPerEuclideanMeterFactor: Double = 0.1 // (~13.4m/s)^-1 * 1.4
+    secondsPerEuclideanMeterFactor: Double = 0.1,
+    invokedFrom: String = "" // (~13.4m/s)^-1 * 1.4
   ): Option[RideHailAgentETA] = {
     var start = System.currentTimeMillis()
     val nearbyAvailableRideHailAgents = idleRideHailAgentSpatialIndex
@@ -131,9 +132,33 @@ class RideHailVehicleManager(val rideHailManager: RideHailManager, boundingBox: 
           )
           gf.copy(geofenceX = newCoords.getX, geofenceY = newCoords.getY)
         }
-        idleRideHailVehicles.contains(x.vehicleId) && !excludeRideHailVehicles.contains(x.vehicleId) &&
-        (geofenceUpdated.isEmpty || ((geofenceUpdated.isDefined && geofenceUpdated.get.contains(pickupLocation)) && (geofenceUpdated.isDefined && geofenceUpdated.get
+        val condition = idleRideHailVehicles.contains(x.vehicleId) && !excludeRideHailVehicles.contains(x.vehicleId) &&
+        (x.geofence.isEmpty || ((x.geofence.isDefined && x.geofence.get.contains(pickupLocation)) &&
+        (x.geofence.isDefined && x.geofence.get
           .contains(dropoffLocation))))
+        if (condition) {
+          if (x.geofence.isDefined) {
+            logger.info(
+              s"[${x.vehicleId}][${x.geofence.get}] Conditions : picked up inside geofence ? - ${x.geofence.get.contains(pickupLocation)} , \n" +
+              s"dropped inside geofence ? - ${x.geofence.get.contains(dropoffLocation)} ,\n" +
+              s"is vehicle idle ? - ${idleRideHailVehicles.contains(x.vehicleId)} ,\n" +
+              s"is vehicle not excluded ? - ${!excludeRideHailVehicles.contains(x.vehicleId)} ,\n" +
+              s"Distance to pickup : ${GeoUtils.distFormula(x.geofence.get.geofenceX, x.geofence.get.geofenceY, pickupLocation.getX, pickupLocation.getY)} ,\n" +
+              s"Distance to drop off : ${GeoUtils.distFormula(x.geofence.get.geofenceX, x.geofence.get.geofenceY, dropoffLocation.getX, dropoffLocation.getY)} ,\n" +
+              s"Geofence radius : ${x.geofence.get.geofenceRadius}, \n invoked from : $invokedFrom"
+            )
+            logger.info(
+              s"[${x.vehicleId}] Condition with updated geofence : " + (idleRideHailVehicles.contains(x.vehicleId) &&
+              !excludeRideHailVehicles.contains(x.vehicleId) &&
+              (geofenceUpdated.isEmpty || ((geofenceUpdated.isDefined && geofenceUpdated.get
+                .contains(pickupLocation)) &&
+              (geofenceUpdated.isDefined && geofenceUpdated.get.contains(dropoffLocation)))))
+            )
+          } else {
+            logger.info(s"[${x.vehicleId}] Geofence is not defined. Condition is : ", condition)
+          }
+        }
+        condition
       }
 
     var end = System.currentTimeMillis()
@@ -153,13 +178,8 @@ class RideHailVehicleManager(val rideHailManager: RideHailManager, boundingBox: 
     end = System.currentTimeMillis()
     val diff2 = end - start
 
-//    logger.whenDebugEnabled {
-//      val sortedByTime = times2RideHailAgents.toVector.sortBy(x => x.timeToCustomer)
-//      logger.info(s"At tick $customerRequestTime there were AvailableRideHailAgents: $sortedByTime")
-//    }
-
     if (diff1 + diff2 > 100)
-      logger.debug(
+      logger.info(
         s"getClosestIdleVehiclesWithinRadiusByETA for $pickupLocation with $radius nearbyAvailableRideHailAgents: $diff1, diff2: $diff2. Total: ${diff1 + diff2} ms"
       )
     if (times2RideHailAgents.isEmpty) None

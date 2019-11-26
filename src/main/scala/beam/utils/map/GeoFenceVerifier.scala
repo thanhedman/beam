@@ -87,11 +87,11 @@ object GeoFenceVerifier extends LazyLogging {
     val diffEnd = GeoUtils.distFormula(geofenceCoord, endUtm) - geofence.geofenceRadius
     if (diffStart > 0)
       logger.info(
-        s"Geofence is broken at start point. startOutsideOfGeofence: $diffStart"
+        s"[${pte.vehicleId}] Geofence is broken at start point. startOutsideOfGeofence: $diffStart"
       )
     if (diffEnd > 0)
       logger.info(
-        s"Geofence is broken at end point. endOutsideOfGeofence: $diffEnd"
+        s"[${pte.vehicleId}] Geofence is broken at end point. endOutsideOfGeofence: $diffEnd"
       )
     Array(PointInfo(diffStart, geofence.geofenceRadius), PointInfo(diffEnd, geofence.geofenceRadius))
   }

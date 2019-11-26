@@ -40,7 +40,8 @@ abstract class RideHailResourceAllocationManager(private val rideHailManager: Ri
       inquiry.destinationUTM,
       rideHailManager.radiusInMeters,
       inquiry.departAt,
-      beamServices
+      beamServices,
+      invokedFrom = this.getClass.toString
     ) match {
       case Some(agentETA) =>
         SingleOccupantQuoteAndPoolingInfo(agentETA.agentLocation, None)
