@@ -145,7 +145,7 @@ class RideHailVehicleManager(val rideHailManager: RideHailManager, boundingBox: 
               s"is vehicle not excluded ? - ${!excludeRideHailVehicles.contains(x.vehicleId)} ,\n" +
               s"Distance to pickup : ${GeoUtils.distFormula(x.geofence.get.geofenceX, x.geofence.get.geofenceY, pickupLocation.getX, pickupLocation.getY)} ,\n" +
               s"Distance to drop off : ${GeoUtils.distFormula(x.geofence.get.geofenceX, x.geofence.get.geofenceY, dropoffLocation.getX, dropoffLocation.getY)} ,\n" +
-              s"Geofence radius : ${x.geofence.get.geofenceRadius}, \n invoked from : $invokedFrom"
+              s"Geofence radius : ${x.geofence.get.geofenceRadius}, \n invoked from class : $invokedFrom"
             )
             logger.info(
               s"[${x.vehicleId}] Condition with updated geofence : " + (idleRideHailVehicles.contains(x.vehicleId) &&
@@ -155,7 +155,7 @@ class RideHailVehicleManager(val rideHailManager: RideHailManager, boundingBox: 
               (geofenceUpdated.isDefined && geofenceUpdated.get.contains(dropoffLocation)))))
             )
           } else {
-            logger.info(s"[${x.vehicleId}] Geofence is not defined. Condition is : ", condition)
+            logger.info(s"[${x.vehicleId}] Geofence is not defined. Condition is : $condition ,\n invoked from class : $invokedFrom")
           }
         }
         condition
