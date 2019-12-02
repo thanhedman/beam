@@ -41,7 +41,7 @@ abstract class RideHailResourceAllocationManager(private val rideHailManager: Ri
       rideHailManager.radiusInMeters,
       inquiry.departAt,
       beamServices,
-      invokedFrom = this.getClass.toString
+      invokedFrom = "RideHailResourceAllocationManager#respondToInquiry"
     ) match {
       case Some(agentETA) =>
         SingleOccupantQuoteAndPoolingInfo(agentETA.agentLocation, None)
@@ -137,7 +137,8 @@ abstract class RideHailResourceAllocationManager(private val rideHailManager: Ri
             requestWithUpdatedLoc.destinationUTM,
             rideHailManager.radiusInMeters,
             tick,
-            beamServices
+            beamServices,
+            invokedFrom = "RideHailResourceAllocationManager#allocateVehiclesToCustomers#case-routingResponses.isEmpty"
           ) match {
           case Some(agentETA) =>
             val routeRequired = RoutingRequiredToAllocateVehicle(
@@ -165,7 +166,8 @@ abstract class RideHailResourceAllocationManager(private val rideHailManager: Ri
             rideHailManager.radiusInMeters,
             tick,
             beamServices,
-            excludeRideHailVehicles = alreadyAllocated
+            excludeRideHailVehicles = alreadyAllocated,
+            invokedFrom = "RideHailResourceAllocationManager#allocateVehiclesToCustomers#case-routingResponses.nonEmpty"
           ) match {
           case Some(agentETA) =>
             alreadyAllocated = alreadyAllocated + agentETA.agentLocation.vehicleId

@@ -115,7 +115,7 @@ class RideHailVehicleManager(val rideHailManager: RideHailManager, boundingBox: 
     beamServices: BeamServices,
     excludeRideHailVehicles: Set[Id[Vehicle]] = Set(),
     secondsPerEuclideanMeterFactor: Double = 0.1,
-    invokedFrom: String = "" // (~13.4m/s)^-1 * 1.4
+    invokedFrom: String // (~13.4m/s)^-1 * 1.4
   ): Option[RideHailAgentETA] = {
     var start = System.currentTimeMillis()
     val nearbyAvailableRideHailAgents = idleRideHailAgentSpatialIndex
@@ -155,7 +155,9 @@ class RideHailVehicleManager(val rideHailManager: RideHailManager, boundingBox: 
               (geofenceUpdated.isDefined && geofenceUpdated.get.contains(dropoffLocation)))))
             )
           } else {
-            logger.info(s"[${x.vehicleId}] Geofence is not defined. Condition is : $condition ,\n invoked from class : $invokedFrom")
+            logger.info(
+              s"[${x.vehicleId}] Geofence is not defined. Condition is : $condition ,\n invoked from class : $invokedFrom"
+            )
           }
         }
         condition

@@ -26,7 +26,8 @@ class Pooling(val rideHailManager: RideHailManager, beamServices: BeamServices)
         inquiry.destinationUTM,
         rideHailManager.radiusInMeters,
         inquiry.departAt,
-        beamServices
+        beamServices,
+        invokedFrom = "Pooling#respondToInquiry"
       ) match {
       case Some(agentETA) =>
         SingleOccupantQuoteAndPoolingInfo(agentETA.agentLocation, Some(PoolingInfo(1.1, 0.6)))
@@ -106,7 +107,8 @@ class Pooling(val rideHailManager: RideHailManager, beamServices: BeamServices)
               rideHailManager.radiusInMeters,
               tick,
               beamServices,
-              excludeRideHailVehicles = alreadyAllocated
+              excludeRideHailVehicles = alreadyAllocated,
+              invokedFrom = "Pooling#allocateVehiclesToCustomers#case2"
             ) match {
             case Some(agentETA) =>
               alreadyAllocated = alreadyAllocated + agentETA.agentLocation.vehicleId
@@ -222,7 +224,8 @@ object Pooling {
         rideHailManager.radiusInMeters,
         pickUpTime,
         beamServices,
-        excludeRideHailVehicles = alreadyAllocated
+        excludeRideHailVehicles = alreadyAllocated,
+        invokedFrom = "Pooling#serveOneRequest"
       ) match {
       case Some(agentETA) =>
         RoutingRequiredToAllocateVehicle(
