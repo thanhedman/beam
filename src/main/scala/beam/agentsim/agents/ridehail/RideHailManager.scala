@@ -580,7 +580,10 @@ class RideHailManager(
       cachedNotifyVehicleIdle.put(vehicleId, notify)
 
     case notifyVehicleIdleMessage @ NotifyVehicleIdle(_, _, _, _, _, _) =>
-      handleNotifyVehicleIdle(notifyVehicleIdleMessage)
+      handleNotifyVehicleIdle(
+        notifyVehicleIdleMessage,
+        this.getClass.getSimpleName + "#case notifyVehicleIdleMessage @ NotifyVehicleIdle"
+      )
 
     case BeamVehicleStateUpdate(id, beamVehicleState) =>
       vehicleManager.vehicleState.put(id, beamVehicleState)
@@ -792,13 +795,21 @@ class RideHailManager(
       // It's too complicated to modify these vehicles, it's also rare so we ignore them
       doNotUseInAllocation.add(vehicleId)
       modifyPassengerScheduleManager.handleInterruptReply(reply)
-      updateLatestObservedTick(vehicleId, tick)
+      updateLatestObservedTick(
+        vehicleId,
+        tick,
+        s"${this.getClass.getSimpleName}#case reply @ InterruptedWhileWaitingToDrive(_, vehicleId, tick)"
+      )
       continueProcessingTimeoutIfReady
 
     case reply @ InterruptedWhileOffline(_, vehicleId, tick) =>
       doNotUseInAllocation.add(vehicleId)
       modifyPassengerScheduleManager.handleInterruptReply(reply)
-      updateLatestObservedTick(vehicleId, tick)
+      updateLatestObservedTick(
+        vehicleId,
+        tick,
+        s"${this.getClass.getSimpleName}#reply @ InterruptedWhileOffline(_, vehicleId, tick) "
+      )
       continueProcessingTimeoutIfReady
 
     case reply @ InterruptedWhileIdle(interruptId, vehicleId, tick) =>
@@ -806,10 +817,23 @@ class RideHailManager(
         outOfServiceVehicleManager.handleInterruptReply(vehicleId, tick)
       } else {
         modifyPassengerScheduleManager.handleInterruptReply(reply)
-        if (currentlyProcessingTimeoutTrigger.isDefined) vehicleManager.makeAvailable(vehicleId)
-        updateLatestObservedTick(vehicleId, tick)
+        if (currentlyProcessingTimeoutTrigger.isDefined)
+          vehicleManager.makeAvailable(
+            vehicleId,
+            s"${this.getClass.getSimpleName}#case reply @ InterruptedWhileIdle(interruptId, vehicleId, tick)"
+          )
+        updateLatestObservedTick(
+          vehicleId,
+          tick,
+          s"${this.getClass.getSimpleName}#case reply @ InterruptedWhileIdle(interruptId, vehicleId, tick)"
+        )
         // Make sure we take away passenger schedule from RHA Location
-        updatePassengerSchedule(vehicleId, None, None)
+        updatePassengerSchedule(
+          vehicleId,
+          None,
+          None,
+          s"${this.getClass.getSimpleName}#case reply @ InterruptedWhileIdle"
+        )
         continueProcessingTimeoutIfReady
       }
 
@@ -827,8 +851,17 @@ class RideHailManager(
       } else {
         modifyPassengerScheduleManager.handleInterruptReply(reply)
         if (currentlyProcessingTimeoutTrigger.isDefined) vehicleManager.putIntoService(vehicleId)
-        updatePassengerSchedule(vehicleId, Some(interruptedPassengerSchedule), Some(currentPassengerScheduleIndex))
-        updateLatestObservedTick(vehicleId, tick)
+        updatePassengerSchedule(
+          vehicleId,
+          Some(interruptedPassengerSchedule),
+          Some(currentPassengerScheduleIndex),
+          s"${this.getClass.getSimpleName}#case reply @ InterruptedWhileDriving"
+        )
+        updateLatestObservedTick(
+          vehicleId,
+          tick,
+          s"${this.getClass.getSimpleName}#case reply @ InterruptedWhileDriving"
+        )
         continueProcessingTimeoutIfReady
       }
 
@@ -893,7 +926,8 @@ class RideHailManager(
   def updatePassengerSchedule(
     vehicleId: Id[Vehicle],
     passengerSchedule: Option[PassengerSchedule],
-    passengerScheduleIndex: Option[Int]
+    passengerScheduleIndex: Option[Int],
+    invokedFrom: String
   ): Boolean = {
     // Update with latest passenger schedule
     val locationWithLatest = vehicleManager
@@ -906,13 +940,13 @@ class RideHailManager(
       case InService =>
         vehicleManager.putIntoService(locationWithLatest)
       case Available =>
-        vehicleManager.makeAvailable(locationWithLatest)
+        vehicleManager.makeAvailable(locationWithLatest, "updatePassengerSchedule")
       case OutOfService =>
         vehicleManager.putOutOfService(locationWithLatest)
     }
   }
 
-  def updateLatestObservedTick(vehicleId: Id[Vehicle], tick: Int): Boolean = {
+  def updateLatestObservedTick(vehicleId: Id[Vehicle], tick: Int, invokedFrom: String): Boolean = {
     // Update with latest tick
     val locationWithLatest = vehicleManager
       .getRideHailAgentLocation(vehicleId)
@@ -923,7 +957,7 @@ class RideHailManager(
       case InService =>
         vehicleManager.putIntoService(locationWithLatest)
       case Available =>
-        vehicleManager.makeAvailable(locationWithLatest)
+        vehicleManager.makeAvailable(locationWithLatest, invokedFrom + " -> updateLatestObservedTick")
       case OutOfService =>
         vehicleManager.putOutOfService(locationWithLatest)
     }
@@ -942,7 +976,7 @@ class RideHailManager(
     }
   }
 
-  def handleNotifyVehicleIdle(notifyVehicleIdleMessage: NotifyVehicleIdle): Unit = {
+  def handleNotifyVehicleIdle(notifyVehicleIdleMessage: NotifyVehicleIdle, invokedFrom: String): Unit = {
     val vehicleId = notifyVehicleIdleMessage.resourceId.asInstanceOf[Id[Vehicle]]
     log.debug(
       "RHM.NotifyVehicleIdle: {}, service status: {}",
@@ -956,6 +990,11 @@ class RideHailManager(
       notifyVehicleIdleMessage.passengerSchedule,
       notifyVehicleIdleMessage.triggerId
     )
+    if (geofence.isEmpty) {
+      log.info(
+        s"[${this.getClass.getSimpleName}#handleNotifyVehicleIdle][${vehicleId.toString}] Handling next idle vehicle notification message Geo fence is not defined."
+      )
+    }
 
     vehicleManager.updateLocationOfAgent(vehicleId, whenWhere, vehicleManager.getServiceStatusOf(vehicleId))
 
@@ -978,8 +1017,8 @@ class RideHailManager(
         attemptToRefuel(vehicleId, beamVehicle.driver.get, parkingStall, whenWhere.time, triggerId, JustArrivedAtDepot)
       //If not arrived for refueling;
       case _ => {
-        log.debug("Making vehicle {} available", vehicleId)
-        vehicleManager.makeAvailable(rideHailAgentLocation)
+        log.info("Making vehicle {} available", vehicleId)
+        vehicleManager.makeAvailable(rideHailAgentLocation, s"$invokedFrom -> handleNotifyVehicleIdle")
         removeFromCharging(vehicleId) match {
           case Some(parkingStall) => {
             rideHailDepotParkingManager.releaseStall(parkingStall)
@@ -1351,7 +1390,7 @@ class RideHailManager(
       )
       cachedNotifyVehicleIdle.get(travelProposal.rideHailAgentLocation.vehicleId) match {
         case Some(notifyVehicleIdle) =>
-          handleNotifyVehicleIdle(notifyVehicleIdle)
+          handleNotifyVehicleIdle(notifyVehicleIdle, this.getClass.getSimpleName + "#handleReservation")
           modifyPassengerScheduleManager.setStatusToIdle(notifyVehicleIdle.resourceId.asInstanceOf[Id[Vehicle]])
           cachedNotifyVehicleIdle.remove(travelProposal.rideHailAgentLocation.vehicleId)
         case None =>
@@ -1678,7 +1717,7 @@ class RideHailManager(
     modifyPassengerScheduleManager.cleanUpCaches
     cachedNotifyVehicleIdle.foreach {
       case (_, notifyMessage) =>
-        handleNotifyVehicleIdle(notifyMessage)
+        handleNotifyVehicleIdle(notifyMessage, this.getClass.getSimpleName + "#cleanup")
     }
     cachedNotifyVehicleIdle.clear()
     log.debug("Elapsed planning time = {}", (System.nanoTime() - currentlyProcessingTimeoutWallStartTime) / 1e6)

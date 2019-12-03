@@ -245,6 +245,9 @@ class RideHailVehicleManager(val rideHailManager: RideHailManager, boundingBox: 
               prevLocation.currentLocationUTM.loc.getY,
               prevLocation
             )
+            if (newLocation.geofence.isEmpty) {
+              logger.info(s"[${this.getClass.getSimpleName}#updateLocationOfAgent] Geo fence is empty")
+            }
             idleRideHailAgentSpatialIndex.put(
               newLocation.currentLocationUTM.loc.getX,
               newLocation.currentLocationUTM.loc.getY,
@@ -290,12 +293,18 @@ class RideHailVehicleManager(val rideHailManager: RideHailManager, boundingBox: 
     }
   }
 
-  def makeAvailable(vehicleId: Id[Vehicle]): Boolean = {
-    this.makeAvailable(getRideHailAgentLocation(vehicleId))
+  def makeAvailable(vehicleId: Id[Vehicle], invokedFrom: String): Boolean = {
+    val agentLocation = getRideHailAgentLocation(vehicleId)
+    this.makeAvailable(agentLocation, "makeAvailable(vehicleId: Id[Vehicle])")
   }
 
-  def makeAvailable(agentLocation: RideHailAgentLocation) = {
+  def makeAvailable(agentLocation: RideHailAgentLocation, invokedFrom: String) = {
     idleRideHailVehicles.put(agentLocation.vehicleId, agentLocation)
+    if (agentLocation.geofence.isEmpty) {
+      logger.info(
+        s"[${this.getClass.getSimpleName}#makeAvailable][${agentLocation.vehicleId.toString}] Geo fence is empty. Invoked from : $invokedFrom"
+      )
+    }
     idleRideHailAgentSpatialIndex.put(
       agentLocation.currentLocationUTM.loc.getX,
       agentLocation.currentLocationUTM.loc.getY,

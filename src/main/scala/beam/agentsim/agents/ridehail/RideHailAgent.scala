@@ -785,6 +785,11 @@ class RideHailAgent(
             //assert(false)
           }
 
+          if (nextIdle.geofence.isEmpty) {
+            log.info(
+              s"[${this.getClass.getSimpleName}#onTransition][${nextIdle.resourceId.asInstanceOf[Id[Vehicle]].toString}] Handling next idle vehicle notification message. Geo fence is not defined."
+            )
+          }
           vehicle.manager.get ! nextIdle
 
         case None =>
