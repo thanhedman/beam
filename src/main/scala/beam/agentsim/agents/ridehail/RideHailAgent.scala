@@ -663,6 +663,7 @@ class RideHailAgent(
         currentLocation
     }
     vehicle.spaceTime = SpaceTime(newLocation, tick)
+    log.info(s"[RidehailAgent#handleEndRefuel][${vehicle.id.toString}] Generating notify vehicle idle message with empty geofence")
     nextNotifyVehicleResourceIdle = Some(
       NotifyVehicleIdle(
         vehicle.id,
