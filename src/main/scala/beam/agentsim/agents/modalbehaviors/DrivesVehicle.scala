@@ -249,7 +249,7 @@ trait DrivesVehicle[T <: DrivingData] extends BeamAgent[T] with Stash {
       }
 
       if (isLastLeg) {
-        if (data.geofence.isEmpty)
+        if (data.geofence.isEmpty && currentVehicleUnderControl.toString.startsWith("rideHailVehicle-"))
           log.info(
             s"[DrivesVehicle#(Driving)][${currentVehicleUnderControl.toString} Generating notify vehicle idle message with empty geofence"
           )
@@ -495,7 +495,7 @@ trait DrivesVehicle[T <: DrivingData] extends BeamAgent[T] with Stash {
 
       val fuelConsumed = currentBeamVehicle.useFuel(currentLeg, beamScenario, networkHelper)
 
-      if (data.geofence.isEmpty)
+      if (data.geofence.isEmpty && currentVehicleUnderControl.toString.startsWith("rideHailVehicle-"))
         log.info(
           s"[DrivesVehicle#DrivingInterrupted][${currentVehicleUnderControl.toString} Generating notify vehicle idle message with empty geofence"
         )

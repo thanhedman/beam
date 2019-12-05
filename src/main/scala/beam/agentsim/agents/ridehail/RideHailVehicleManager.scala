@@ -132,20 +132,22 @@ class RideHailVehicleManager(val rideHailManager: RideHailManager, boundingBox: 
           )
           gf.copy(geofenceX = newCoords.getX, geofenceY = newCoords.getY)
         }
+        val geofence = geofenceUpdated
         val condition = idleRideHailVehicles.contains(x.vehicleId) && !excludeRideHailVehicles.contains(x.vehicleId) &&
-        (x.geofence.isEmpty || ((x.geofence.isDefined && x.geofence.get.contains(pickupLocation)) &&
-        (x.geofence.isDefined && x.geofence.get
+        (geofence.isEmpty || ((geofence.isDefined && geofence.get.contains(pickupLocation)) &&
+        (geofence.isDefined && geofence.get
           .contains(dropoffLocation))))
         if (condition) {
-          if (x.geofence.isDefined) {
+          if (geofence.isDefined) {
             logger.info(
-              s"[${x.vehicleId}][${x.geofence.get}] Conditions : picked up inside geofence ? - ${x.geofence.get.contains(pickupLocation)} , \n" +
-              s"dropped inside geofence ? - ${x.geofence.get.contains(dropoffLocation)} ,\n" +
+              s"[${x.vehicleId}][${geofence.get}] Conditions : picked up inside geofence ? - ${geofence.get.contains(pickupLocation)} , \n" +
+              s"dropped inside geofence ? - ${geofence.get.contains(dropoffLocation)} ,\n" +
               s"is vehicle idle ? - ${idleRideHailVehicles.contains(x.vehicleId)} ,\n" +
               s"is vehicle not excluded ? - ${!excludeRideHailVehicles.contains(x.vehicleId)} ,\n" +
-              s"Distance to pickup : ${GeoUtils.distFormula(x.geofence.get.geofenceX, x.geofence.get.geofenceY, pickupLocation.getX, pickupLocation.getY)} ,\n" +
-              s"Distance to drop off : ${GeoUtils.distFormula(x.geofence.get.geofenceX, x.geofence.get.geofenceY, dropoffLocation.getX, dropoffLocation.getY)} ,\n" +
-              s"Geofence radius : ${x.geofence.get.geofenceRadius}, \n invoked from class : $invokedFrom"
+              s"Distance to pickup : ${GeoUtils
+                .distFormula(geofence.get.geofenceX, geofence.get.geofenceY, pickupLocation.getX, pickupLocation.getY)} ,\n" +
+              s"Distance to drop off : ${GeoUtils.distFormula(geofence.get.geofenceX, geofence.get.geofenceY, dropoffLocation.getX, dropoffLocation.getY)} ,\n" +
+              s"Geofence radius : ${geofence.get.geofenceRadius}, \n invoked from class : $invokedFrom"
             )
             logger.info(
               s"[${x.vehicleId}] Condition with updated geofence : " + (idleRideHailVehicles.contains(x.vehicleId) &&

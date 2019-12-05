@@ -4,8 +4,9 @@ import java.io.Closeable
 
 import beam.agentsim.events.PathTraversalEvent
 import beam.sim.common.GeoUtils
-import beam.sim.{Geofence, RideHailFleetInitializer}
+import beam.sim.{BeamServices, Geofence, RideHailFleetInitializer}
 import beam.utils.{EventReader, ProfilingUtils, Statistics}
+import com.google.inject.Inject
 import com.typesafe.scalalogging.LazyLogging
 import org.matsim.api.core.v01.Coord
 import org.matsim.api.core.v01.events.Event
@@ -87,11 +88,11 @@ object GeoFenceVerifier extends LazyLogging {
     val diffEnd = GeoUtils.distFormula(geofenceCoord, endUtm) - geofence.geofenceRadius
     if (diffStart > 0)
       logger.info(
-        s"[${pte.vehicleId}] Geofence is broken at start point. startOutsideOfGeofence: $diffStart"
+        s"[${pte.vehicleId}](${pte.startX} -> ${pte.startY}) Geofence is broken at start point. startOutsideOfGeofence: $diffStart"
       )
     if (diffEnd > 0)
       logger.info(
-        s"[${pte.vehicleId}] Geofence is broken at end point. endOutsideOfGeofence: $diffEnd"
+        s"[${pte.vehicleId}](${pte.endX} -> ${pte.endY}) Geofence is broken at end point. endOutsideOfGeofence: $diffEnd"
       )
     Array(PointInfo(diffStart, geofence.geofenceRadius), PointInfo(diffEnd, geofence.geofenceRadius))
   }
