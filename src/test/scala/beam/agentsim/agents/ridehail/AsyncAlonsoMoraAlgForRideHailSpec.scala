@@ -21,8 +21,8 @@ class AsyncAlonsoMoraAlgForRideHailSpec extends FlatSpec with Matchers with Beam
                      |beam.physsim.skipPhysSim = true
                      |beam.agentsim.lastIteration = 0
                      |beam.agentsim.agents.rideHail.allocationManager.alonsoMora.waitingTimeInSec = 420
-                     |beam.agentsim.agents.rideHail.allocationManager.alonsoMora.travelTimeDelayAsFraction= 0.2
-                     |beam.agentsim.agents.rideHail.allocationManager.alonsoMora.solutionSpaceSizePerVehicle = 1000
+                     |beam.agentsim.agents.rideHail.allocationManager.alonsoMora.excessRideTimeAsFraction= 0.2
+                     |beam.agentsim.agents.rideHail.allocationManager.alonsoMora.numRequestsPerVehicle = 1000
         """.stripMargin)
       .withFallback(testConfig("test/input/beamville/beam.conf"))
       .resolve()
@@ -40,8 +40,8 @@ class AsyncAlonsoMoraAlgForRideHailSpec extends FlatSpec with Matchers with Beam
                      |beam.physsim.skipPhysSim = true
                      |beam.agentsim.lastIteration = 0
                      |beam.agentsim.agents.rideHail.allocationManager.alonsoMora.waitingTimeInSec = 420
-                     |beam.agentsim.agents.rideHail.allocationManager.alonsoMora.travelTimeDelayAsFraction= 0.2
-                     |beam.agentsim.agents.rideHail.allocationManager.alonsoMora.solutionSpaceSizePerVehicle = 1000
+                     |beam.agentsim.agents.rideHail.allocationManager.alonsoMora.excessRideTimeAsFraction= 0.2
+                     |beam.agentsim.agents.rideHail.allocationManager.alonsoMora.numRequestsPerVehicle = 1000
         """.stripMargin)
       .withFallback(testConfig("test/input/beamville/beam.conf"))
       .resolve()
@@ -100,8 +100,8 @@ class AsyncAlonsoMoraAlgForRideHailSpec extends FlatSpec with Matchers with Beam
                      |beam.physsim.skipPhysSim = true
                      |beam.agentsim.lastIteration = 0
                      |beam.agentsim.agents.rideHail.allocationManager.alonsoMora.waitingTimeInSec = 360
-                     |beam.agentsim.agents.rideHail.allocationManager.alonsoMora.travelTimeDelayAsFraction= 0.5
-                     |beam.agentsim.agents.rideHail.allocationManager.alonsoMora.solutionSpaceSizePerVehicle = 100
+                     |beam.agentsim.agents.rideHail.allocationManager.alonsoMora.excessRideTimeAsFraction= 0.5
+                     |beam.agentsim.agents.rideHail.allocationManager.alonsoMora.numRequestsPerVehicle = 100
         """.stripMargin)
       .withFallback(testConfig("test/input/sf-light/sf-light-25k.conf"))
       .resolve()
