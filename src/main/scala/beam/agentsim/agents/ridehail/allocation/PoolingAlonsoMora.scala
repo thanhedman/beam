@@ -10,12 +10,14 @@ import beam.agentsim.events.SpaceTime
 import beam.router.BeamRouter.RoutingRequest
 import beam.router.BeamSkimmer
 import beam.router.Modes.BeamMode.CAR
+import beam.sim.BeamServices
 import beam.sim.vehiclesharing.VehicleManager
 import org.matsim.api.core.v01.Id
 import org.matsim.core.utils.collections.QuadTree
 import org.matsim.vehicles.Vehicle
 
 import scala.collection.JavaConverters._
+import scala.collection.immutable.List
 import scala.collection.mutable
 import scala.concurrent.{Await, TimeoutException}
 
@@ -178,16 +180,31 @@ class PoolingAlonsoMora(val rideHailManager: RideHailManager)
         rideHailManager.log
           .debug("%%%%% Requests: {}", spatialPoolCustomerReqs.values().asScala.map(_.toString).mkString("\n"))
       }
-      val alg =
-        new VehicleCentricMatchingForRideHail(
+//      val alg =
+//        new VehicleCentricMatchingForRideHail(
+//          spatialPoolCustomerReqs,
+//          availVehicles,
+//          rideHailManager.beamServices,
+//          skimmer
+//        )
+      val alg2 =
+        new AsyncAlonsoMoraAlgForRideHail(
           spatialPoolCustomerReqs,
           availVehicles,
           rideHailManager.beamServices,
           skimmer
         )
+//      val alg3 =
+//        new AlonsoMoraPoolingAlgForRideHail(
+//          spatialPoolCustomerReqs,
+//          availVehicles,
+//          rideHailManager.beamServices,
+//          skimmer
+//        )
+
       import scala.concurrent.duration._
       val assignment = try {
-        Await.result(alg.matchAndAssign(tick), atMost = 2.minutes)
+        Await.result(alg2.matchAndAssign(tick), atMost = 2.minutes)
       } catch {
         case e: TimeoutException =>
           rideHailManager.log.error("timeout of AsyncAlonsoMoraAlgForRideHail no allocations made")
