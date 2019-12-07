@@ -23,6 +23,8 @@ import scala.collection.immutable.List
 import scala.collection.mutable.ListBuffer
 import beam.sim.config.BeamConfig.Beam.Agentsim.Agents.RideHail.AllocationManager
 
+import scala.concurrent.Future
+
 class AlonsoMoraPoolingAlgForRideHail(
   spatialDemand: QuadTree[CustomerRequest],
   supply: List[VehicleAndSchedule],
@@ -36,10 +38,11 @@ class AlonsoMoraPoolingAlgForRideHail(
   private def solutionSpaceSizePerVehicle: Int = alonsoMora.solutionSpaceSizePerVehicle
   private def waitingTimeInSec: Int = alonsoMora.waitingTimeInSec
 
-  val rvG = RVGraph(classOf[RideHailTrip])
-  val rTvG = RTVGraph(classOf[DefaultEdge])
+  //val rvG = RVGraph(classOf[RideHailTrip])
+  //val rTvG = RTVGraph(classOf[DefaultEdge])
   // Request Vehicle Graph
-  private def pairwiseRVGraph: Unit = {
+  private def pairwiseRVGraph: RVGraph = {
+    val rvG = RVGraph(classOf[RideHailTrip])
     for {
       r1: CustomerRequest <- spatialDemand.values().asScala
       r2: CustomerRequest <- spatialDemand
@@ -81,10 +84,12 @@ class AlonsoMoraPoolingAlgForRideHail(
           rvG.addEdge(v, r, RideHailTrip(List(r), schedule))
       }
     }
+    rvG
   }
 
   // Request Trip Vehicle Graph
-  private def rTVGraph(): Unit = {
+  private def rTVGraph(rvG: RVGraph): RTVGraph = {
+    val rTvG = RTVGraph(classOf[DefaultEdge])
     supply.withFilter(x => rvG.containsVertex(x)).foreach { v =>
       rTvG.addVertex(v)
 
@@ -145,17 +150,20 @@ class AlonsoMoraPoolingAlgForRideHail(
               rTvG.addEdge(t, v)
             }
           }
-
           finalRequestsList.appendAll(kRequestsList)
         }
       }
     }
+    rTvG
   }
 
   // a greedy assignment using a cost function
-  def matchAndAssign(tick: Int): List[(RideHailTrip, VehicleAndSchedule, Double)] = {
+  def matchAndAssign(tick: Int): Future[List[(RideHailTrip, VehicleAndSchedule, Double)]] = {
+    import scala.concurrent.ExecutionContext.Implicits.global
     val V: Int = supply.foldLeft(0) { case (maxCapacity, v) => Math max (maxCapacity, v.getFreeSeats) }
-    greedyAssignment(rTvG, V, solutionSpaceSizePerVehicle)
+    Future {
+      greedyAssignment(rTVGraph(pairwiseRVGraph), V, solutionSpaceSizePerVehicle)
+    }
   }
 
 }

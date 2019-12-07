@@ -187,26 +187,26 @@ class PoolingAlonsoMora(val rideHailManager: RideHailManager)
 //          rideHailManager.beamServices,
 //          skimmer
 //        )
-      val alg2 =
-        new AsyncAlonsoMoraAlgForRideHail(
-          spatialPoolCustomerReqs,
-          availVehicles,
-          rideHailManager.beamServices,
-          skimmer
-        )
-//      val alg3 =
-//        new AlonsoMoraPoolingAlgForRideHail(
+//      val alg2 =
+//        new AsyncAlonsoMoraAlgForRideHail(
 //          spatialPoolCustomerReqs,
 //          availVehicles,
 //          rideHailManager.beamServices,
 //          skimmer
 //        )
+      val alg3 =
+        new AlonsoMoraPoolingAlgForRideHail(
+          spatialPoolCustomerReqs,
+          availVehicles,
+          rideHailManager.beamServices,
+          skimmer
+        )
 
       import scala.concurrent.duration._
       val assignment = try {
-        Await.result(alg2.matchAndAssign(tick), atMost = 2.minutes)
+        Await.result(alg3.matchAndAssign(tick), atMost = 2.minutes)
       } catch {
-        case e: TimeoutException =>
+        case _: TimeoutException =>
           rideHailManager.log.error("timeout of AsyncAlonsoMoraAlgForRideHail no allocations made")
           List()
       }
