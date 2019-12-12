@@ -62,7 +62,8 @@ class AlonsoMoraPoolingAlgForRideHail(
       ).map { schedule =>
         rvG.addVertex(r2)
         rvG.addVertex(r1)
-        rvG.addEdge(r1, r2, RideHailTrip(List(r1, r2), schedule))
+        val t = RideHailTrip(List(r1, r2), schedule)
+        rvG.addEdge(r1, r2, t)
       }
     }
 
@@ -81,7 +82,8 @@ class AlonsoMoraPoolingAlgForRideHail(
         schedule =>
           rvG.addVertex(v)
           rvG.addVertex(r)
-          rvG.addEdge(v, r, RideHailTrip(List(r), schedule))
+          val t = RideHailTrip(List(r), schedule)
+          rvG.addEdge(v, r, t)
       }
     }
     rvG
@@ -204,7 +206,7 @@ object AlonsoMoraPoolingAlgForRideHail {
                 .head
             )
             .asInstanceOf[VehicleAndSchedule]
-          val cost = trip.requests.size * trip.sumOfDelaysAsFraction + (solutionSpaceSizePerVehicle - trip.requests.size) * 1.0
+          val cost = trip.requests.size * trip.sumOfDelaysAsFraction + (vehicle.getFreeSeats - trip.requests.size) * 1.0
           (trip, vehicle, cost)
         }
         .toList
@@ -526,14 +528,16 @@ object AlonsoMoraPoolingAlgForRideHail {
   case class RideHailTrip(requests: List[CustomerRequest], schedule: List[MobilityRequest])
       extends DefaultEdge
       with RTVGraphNode {
-    override def getId: String = requests.foldLeft(s"trip:") { case (c, x) => c + s"$x -> " }
-    val sumOfDelays: Int = schedule.foldLeft(0) { case (c, r)              => c + (r.serviceTime - r.baselineNonPooledTime) }
-
-    val sumOfDelaysAsFraction: Int = sumOfDelays / schedule.foldLeft(0) {
-      case (c, r) => c + (r.upperBoundTime - r.baselineNonPooledTime)
+    var sumOfDelays: Int = 0
+    var upperBoundDelays: Int = 0
+    schedule.foreach { r =>
+        sumOfDelays += (r.serviceTime - r.baselineNonPooledTime)
+        upperBoundDelays += (r.upperBoundTime - r.baselineNonPooledTime)
     }
-    override def toString: String =
-      s"${requests.size} requests and this schedule: ${schedule.map(_.toString).mkString("\n")}"
+    val sumOfDelaysAsFraction: Double = sumOfDelays/upperBoundDelays.toDouble
+
+    override def getId: String = requests.foldLeft(s"trip:") { case (c, x) => c + s"$x -> " }
+    override def toString: String = s"${requests.size} requests and this schedule: ${schedule.map(_.toString).mkString("\n")}"
   }
   case class RVGraph(clazz: Class[RideHailTrip])
       extends DefaultUndirectedWeightedGraph[RVGraphNode, RideHailTrip](clazz)
