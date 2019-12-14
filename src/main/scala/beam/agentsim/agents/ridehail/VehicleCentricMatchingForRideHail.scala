@@ -149,12 +149,23 @@ class VehicleCentricMatchingForRideHail(
     potentialTrips.toList
   }
 
+//  private def greedyAssignment(trips: List[AssignmentKey]): List[AssignmentKey] = {
+//    val greedyAssignmentList = mutable.ListBuffer.empty[AssignmentKey]
+//    var tripsByPoolSize = trips.sortBy(-_._1.requests.size)
+//    while (tripsByPoolSize.nonEmpty) {
+//      val maxPool = tripsByPoolSize.head._1.requests.size
+//      val (trip, vehicle, cost) = tripsByPoolSize.filter(_._1.requests.size == maxPool).minBy(_._3)
+//      greedyAssignmentList.append((trip, vehicle, cost))
+//      tripsByPoolSize = tripsByPoolSize.filter(t => t._2 != vehicle && !t._1.requests.exists(trip.requests.contains))
+//    }
+//    greedyAssignmentList.toList
+//  }
+
   private def greedyAssignment(trips: List[AssignmentKey]): List[AssignmentKey] = {
     val greedyAssignmentList = mutable.ListBuffer.empty[AssignmentKey]
-    var tripsByPoolSize = trips.sortBy(-_._1.requests.size)
+    var tripsByPoolSize = trips.sortBy(_._3)
     while (tripsByPoolSize.nonEmpty) {
-      val maxPool = tripsByPoolSize.head._1.requests.size
-      val (trip, vehicle, cost) = tripsByPoolSize.filter(_._1.requests.size == maxPool).minBy(_._3)
+      val (trip, vehicle, cost) = tripsByPoolSize.head
       greedyAssignmentList.append((trip, vehicle, cost))
       tripsByPoolSize = tripsByPoolSize.filter(t => t._2 != vehicle && !t._1.requests.exists(trip.requests.contains))
     }
