@@ -170,7 +170,7 @@ class AlonsoMoraPoolingAlgForRideHail(
 object AlonsoMoraPoolingAlgForRideHail {
 
   def computeCost(trip: RideHailTrip, vehicle: VehicleAndSchedule): Double = {
-    val alpha = 1 / (trip.sumOfDelays+1)
+    val alpha = 1 - trip.sumOfDelays / trip.upperBoundDelays
     val beta = 1
     -1 * alpha * trip.requests.size + beta * (vehicle.getFreeSeats - trip.requests.size)
   }
@@ -532,10 +532,10 @@ object AlonsoMoraPoolingAlgForRideHail {
       extends DefaultEdge
       with RTVGraphNode {
     var sumOfDelays: Int = 0
-    //var upperBoundDelays: Int = 0
+    var upperBoundDelays: Int = 0
     schedule.foreach { r =>
       sumOfDelays += (r.serviceTime - r.baselineNonPooledTime)
-      //upperBoundDelays += (r.upperBoundTime - r.baselineNonPooledTime)
+      upperBoundDelays += (r.upperBoundTime - r.baselineNonPooledTime)
     }
     //val sumOfDelaysAsFraction: Double = sumOfDelays / upperBoundDelays.toDouble
 
