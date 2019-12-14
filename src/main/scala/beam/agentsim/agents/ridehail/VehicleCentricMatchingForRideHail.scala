@@ -128,7 +128,7 @@ class VehicleCentricMatchingForRideHail(
                 ) match {
                   case Some(schedule) =>
                     val t = RideHailTrip(t1.requests ++ t2.requests, schedule)
-                    val cost = computeCost(t, v)
+                    val cost = AlonsoMoraPoolingAlgForRideHail.computeCost(t, v)
                     if (potentialTripsWithKPassengers.size == 2) {
                       // then replace the trip with highest sum of delays
                       val ((_, _, tripWithLargestDelayCost), index) =
@@ -166,9 +166,4 @@ class VehicleCentricMatchingForRideHail(
     }
     greedyAssignmentList.toList
   }
-
-  private def computeCost(trip: RideHailTrip, vehicle: VehicleAndSchedule): Double = {
-    trip.requests.size * trip.sumOfDelaysAsFraction + (vehicle.getFreeSeats - trip.requests.size) * 1.0
-  }
-
 }

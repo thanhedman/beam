@@ -38,52 +38,46 @@ class AlonsoMoraPoolingAlgForRideHail(
   private def solutionSpaceSizePerVehicle: Int = alonsoMora.solutionSpaceSizePerVehicle
   private def waitingTimeInSec: Int = alonsoMora.waitingTimeInSec
 
-  //val rvG = RVGraph(classOf[RideHailTrip])
-  //val rTvG = RTVGraph(classOf[DefaultEdge])
   // Request Vehicle Graph
   private def pairwiseRVGraph: RVGraph = {
     val rvG = RVGraph(classOf[RideHailTrip])
-    for {
-      r1: CustomerRequest <- spatialDemand.values().asScala
-      r2: CustomerRequest <- spatialDemand
-        .getDisk(
-          r1.pickup.activity.getCoord.getX,
-          r1.pickup.activity.getCoord.getY,
-          waitingTimeInSec * BeamSkimmer.speedMeterPerSec(BeamMode.CAV)
-        )
-        .asScala
-        .withFilter(x => r1 != x && !rvG.containsEdge(r1, x))
-    } yield {
-      getRidehailSchedule(
-        List.empty[MobilityRequest],
-        List(r1.pickup, r1.dropoff, r2.pickup, r2.dropoff),
-        Integer.MAX_VALUE,
-        skimmer
-      ).map { schedule =>
-        rvG.addVertex(r2)
-        rvG.addVertex(r1)
-        val t = RideHailTrip(List(r1, r2), schedule)
-        rvG.addEdge(r1, r2, t)
+    val searchRadius = waitingTimeInSec * BeamSkimmer.speedMeterPerSec(BeamMode.CAV)
+
+    for (r1: CustomerRequest <- spatialDemand.values().asScala) {
+      val center = r1.pickup.activity.getCoord
+      val demand = spatialDemand.getDisk(center.getX, center.getY, searchRadius).asScala
+      for (r2: CustomerRequest <- demand) {
+        if (r1 != r2 && !rvG.containsEdge(r1, r2)) {
+          getRidehailSchedule(
+            List.empty[MobilityRequest],
+            List(r1.pickup, r1.dropoff, r2.pickup, r2.dropoff),
+            Integer.MAX_VALUE,
+            skimmer
+          ).map { schedule =>
+            rvG.addVertex(r2)
+            rvG.addVertex(r1)
+            rvG.addEdge(r1, r2, RideHailTrip(List(r1, r2), schedule))
+          }
+        }
       }
     }
 
-    for {
-      v: VehicleAndSchedule <- supply.withFilter(_.getFreeSeats >= 1)
-      r: CustomerRequest <- spatialDemand
-        .getDisk(
-          v.getRequestWithCurrentVehiclePosition.activity.getCoord.getX,
-          v.getRequestWithCurrentVehiclePosition.activity.getCoord.getY,
-          waitingTimeInSec * BeamSkimmer.speedMeterPerSec(BeamMode.CAV)
-        )
+    for (v: VehicleAndSchedule <- supply.withFilter(_.getFreeSeats >= 1)) {
+      val requestWithCurrentVehiclePosition = v.getRequestWithCurrentVehiclePosition
+      val center = requestWithCurrentVehiclePosition.activity.getCoord
+      val demand = spatialDemand
+        .getDisk(center.getX, center.getY, searchRadius)
         .asScala
+        .toList
+        .sortBy(r => GeoUtils.minkowskiDistFormula(center, r.pickup.activity.getCoord))
         .take(solutionSpaceSizePerVehicle)
-    } yield {
-      getRidehailSchedule(v.schedule, List(r.pickup, r.dropoff), v.vehicleRemainingRangeInMeters.toInt, skimmer).map {
-        schedule =>
-          rvG.addVertex(v)
-          rvG.addVertex(r)
-          val t = RideHailTrip(List(r), schedule)
-          rvG.addEdge(v, r, t)
+      for (r: CustomerRequest <- demand) {
+        getRidehailSchedule(v.schedule, List(r.pickup, r.dropoff), v.vehicleRemainingRangeInMeters.toInt, skimmer).map {
+          schedule =>
+            rvG.addVertex(v)
+            rvG.addVertex(r)
+            rvG.addEdge(v, r, RideHailTrip(List(r), schedule))
+        }
       }
     }
     rvG
@@ -92,11 +86,11 @@ class AlonsoMoraPoolingAlgForRideHail(
   // Request Trip Vehicle Graph
   private def rTVGraph(rvG: RVGraph): RTVGraph = {
     val rTvG = RTVGraph(classOf[DefaultEdge])
-    supply.withFilter(x => rvG.containsVertex(x)).foreach { v =>
-      rTvG.addVertex(v)
 
-      import scala.collection.mutable.{ListBuffer => MListBuffer}
-      val individualRequestsList = MListBuffer.empty[RideHailTrip]
+    for (v <- supply.filter(rvG.containsVertex)) {
+      rTvG.addVertex(v)
+      val finalRequestsList: ListBuffer[RideHailTrip] = ListBuffer.empty[RideHailTrip]
+      val individualRequestsList = ListBuffer.empty[RideHailTrip]
       for (t <- rvG.outgoingEdgesOf(v).asScala) {
         individualRequestsList.append(t)
         rTvG.addVertex(t)
@@ -104,52 +98,52 @@ class AlonsoMoraPoolingAlgForRideHail(
         rTvG.addEdge(t.requests.head, t)
         rTvG.addEdge(t, v)
       }
+      finalRequestsList.appendAll(individualRequestsList)
 
       if (v.getFreeSeats > 1) {
-        val pairRequestsList = MListBuffer.empty[RideHailTrip]
-        for {
-          t1 <- individualRequestsList
-          t2 <- individualRequestsList
-            .drop(individualRequestsList.indexOf(t1))
-            .withFilter(x => rvG.containsEdge(t1.requests.head, x.requests.head))
-        } yield {
-          getRidehailSchedule(
-            v.schedule,
-            (t1.requests ++ t2.requests).flatMap(x => List(x.pickup, x.dropoff)),
-            v.vehicleRemainingRangeInMeters.toInt,
-            skimmer
-          ) map { schedule =>
-            val t = RideHailTrip(t1.requests ++ t2.requests, schedule)
-            pairRequestsList append t
-            rTvG.addVertex(t)
-            rTvG.addEdge(t1.requests.head, t)
-            rTvG.addEdge(t2.requests.head, t)
-            rTvG.addEdge(t, v)
-          }
-        }
-
-        val finalRequestsList: MListBuffer[RideHailTrip] = individualRequestsList ++ pairRequestsList
-        for (k <- 3 until v.getFreeSeats + 1) {
-          val kRequestsList = MListBuffer.empty[RideHailTrip]
-          for {
-            t1 <- finalRequestsList
-            t2 <- finalRequestsList
-              .drop(finalRequestsList.indexOf(t1))
-              .withFilter(
-                x => !(x.requests exists (s => t1.requests contains s)) && (t1.requests.size + x.requests.size) == k
-              )
-          } yield {
+        val pairRequestsList = ListBuffer.empty[RideHailTrip]
+        for (t1 <- individualRequestsList) {
+          for (t2 <- individualRequestsList
+                 .drop(individualRequestsList.indexOf(t1))
+                 .filter(x => rvG.containsEdge(t1.requests.head, x.requests.head))) {
             getRidehailSchedule(
               v.schedule,
               (t1.requests ++ t2.requests).flatMap(x => List(x.pickup, x.dropoff)),
               v.vehicleRemainingRangeInMeters.toInt,
               skimmer
-            ).map { schedule =>
+            ) map { schedule =>
               val t = RideHailTrip(t1.requests ++ t2.requests, schedule)
-              kRequestsList.append(t)
+              pairRequestsList append t
               rTvG.addVertex(t)
-              t.requests.foldLeft(()) { case (_, r) => rTvG.addEdge(r, t) }
+              rTvG.addEdge(t1.requests.head, t)
+              rTvG.addEdge(t2.requests.head, t)
               rTvG.addEdge(t, v)
+            }
+          }
+        }
+        finalRequestsList.appendAll(pairRequestsList)
+
+        for (k <- 3 to v.getFreeSeats) {
+          val kRequestsList = ListBuffer.empty[RideHailTrip]
+          for (t1 <- finalRequestsList) {
+            for (t2 <- finalRequestsList
+                   .drop(finalRequestsList.indexOf(t1))
+                   .filter(
+                     x =>
+                       !(x.requests exists (s => t1.requests contains s)) && (t1.requests.size + x.requests.size) == k
+                   )) {
+              getRidehailSchedule(
+                v.schedule,
+                (t1.requests ++ t2.requests).flatMap(x => List(x.pickup, x.dropoff)),
+                v.vehicleRemainingRangeInMeters.toInt,
+                skimmer
+              ).map { schedule =>
+                val t = RideHailTrip(t1.requests ++ t2.requests, schedule)
+                kRequestsList.append(t)
+                rTvG.addVertex(t)
+                t.requests.foreach(rTvG.addEdge(_, t))
+                rTvG.addEdge(t, v)
+              }
             }
           }
           finalRequestsList.appendAll(kRequestsList)
@@ -162,15 +156,24 @@ class AlonsoMoraPoolingAlgForRideHail(
   // a greedy assignment using a cost function
   def matchAndAssign(tick: Int): Future[List[(RideHailTrip, VehicleAndSchedule, Double)]] = {
     import scala.concurrent.ExecutionContext.Implicits.global
-    val V: Int = supply.foldLeft(0) { case (maxCapacity, v) => Math max (maxCapacity, v.getFreeSeats) }
     Future {
-      greedyAssignment(rTVGraph(pairwiseRVGraph), V, solutionSpaceSizePerVehicle)
+      val rvG = pairwiseRVGraph
+      val rTvG = rTVGraph(rvG)
+      val V: Int = supply.foldLeft(0) { case (maxCapacity, v) => Math max (maxCapacity, v.getFreeSeats) }
+      val assignment = greedyAssignment(rTvG, V)
+      assignment
     }
   }
 
 }
 
 object AlonsoMoraPoolingAlgForRideHail {
+
+  def computeCost(trip: RideHailTrip, vehicle: VehicleAndSchedule): Double = {
+    val alpha = 1 / (trip.sumOfDelays+1)
+    val beta = 1
+    -1 * alpha * trip.requests.size + beta * (vehicle.getFreeSeats - trip.requests.size)
+  }
 
   def checkDistance(r: MobilityRequest, schedule: List[MobilityRequest], searchRadius: Double): Boolean = {
     schedule.foreach { s =>
@@ -183,15 +186,13 @@ object AlonsoMoraPoolingAlgForRideHail {
   // a greedy assignment using a cost function
   def greedyAssignment(
     rTvG: RTVGraph,
-    maximumVehCapacity: Int,
-    solutionSpaceSizePerVehicle: Int
+    maximumVehCapacity: Int
   ): List[(RideHailTrip, VehicleAndSchedule, Double)] = {
-    import scala.collection.mutable.{ListBuffer => MListBuffer}
     val Rok = collection.mutable.HashSet.empty[CustomerRequest]
     val Vok = collection.mutable.HashSet.empty[VehicleAndSchedule]
-    val greedyAssignmentList = MListBuffer.empty[(RideHailTrip, VehicleAndSchedule, Double)]
+    val greedyAssignmentList = ListBuffer.empty[(RideHailTrip, VehicleAndSchedule, Double)]
     for (k <- maximumVehCapacity to 1 by -1) {
-      rTvG
+      val sortedList = rTvG
         .vertexSet()
         .asScala
         .filter(t => t.isInstanceOf[RideHailTrip] && t.asInstanceOf[RideHailTrip].requests.size == k)
@@ -206,19 +207,21 @@ object AlonsoMoraPoolingAlgForRideHail {
                 .head
             )
             .asInstanceOf[VehicleAndSchedule]
-          val cost = trip.requests.size * trip.sumOfDelaysAsFraction + (vehicle.getFreeSeats - trip.requests.size) * 1.0
+          val cost = AlonsoMoraPoolingAlgForRideHail.computeCost(trip, vehicle)
           (trip, vehicle, cost)
         }
         .toList
         .sortBy(_._3)
-        .foreach {
-          case (trip, vehicle, cost) if !(Vok contains vehicle) && !(trip.requests exists (r => Rok contains r)) =>
-            trip.requests.foreach(Rok.add)
-            Vok.add(vehicle)
-            greedyAssignmentList.append((trip, vehicle, cost))
-          case _ =>
-        }
+
+      sortedList.foreach {
+        case (trip, vehicle, cost) if !(Vok contains vehicle) && !(trip.requests exists (r => Rok contains r)) =>
+          trip.requests.foreach(Rok.add)
+          Vok.add(vehicle)
+          greedyAssignmentList.append((trip, vehicle, cost))
+        case _ =>
+      }
     }
+
     greedyAssignmentList.toList
   }
 
@@ -529,15 +532,16 @@ object AlonsoMoraPoolingAlgForRideHail {
       extends DefaultEdge
       with RTVGraphNode {
     var sumOfDelays: Int = 0
-    var upperBoundDelays: Int = 0
+    //var upperBoundDelays: Int = 0
     schedule.foreach { r =>
-        sumOfDelays += (r.serviceTime - r.baselineNonPooledTime)
-        upperBoundDelays += (r.upperBoundTime - r.baselineNonPooledTime)
+      sumOfDelays += (r.serviceTime - r.baselineNonPooledTime)
+      //upperBoundDelays += (r.upperBoundTime - r.baselineNonPooledTime)
     }
-    val sumOfDelaysAsFraction: Double = sumOfDelays/upperBoundDelays.toDouble
+    //val sumOfDelaysAsFraction: Double = sumOfDelays / upperBoundDelays.toDouble
 
     override def getId: String = requests.foldLeft(s"trip:") { case (c, x) => c + s"$x -> " }
-    override def toString: String = s"${requests.size} requests and this schedule: ${schedule.map(_.toString).mkString("\n")}"
+    override def toString: String =
+      s"${requests.size} requests and this schedule: ${schedule.map(_.toString).mkString("\n")}"
   }
   case class RVGraph(clazz: Class[RideHailTrip])
       extends DefaultUndirectedWeightedGraph[RVGraphNode, RideHailTrip](clazz)

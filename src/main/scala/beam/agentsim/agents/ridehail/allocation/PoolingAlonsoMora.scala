@@ -209,6 +209,8 @@ class PoolingAlonsoMora(val rideHailManager: RideHailManager)
         case _: TimeoutException =>
           rideHailManager.log.error("timeout of AsyncAlonsoMoraAlgForRideHail no allocations made")
           List()
+        case t: Throwable =>
+          List()
       }
 
       assignment.foreach {
