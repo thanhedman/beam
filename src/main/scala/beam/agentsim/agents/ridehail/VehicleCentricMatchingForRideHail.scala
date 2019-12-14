@@ -34,7 +34,7 @@ class VehicleCentricMatchingForRideHail(
       .sequence(supply.withFilter(_.getFreeSeats >= 1).map { v =>
         Future { vehicleCentricMatching(v) }
       })
-      .map(result => greedyAssignment(result.flatten))
+      .map(result => getAssignment(result.flatten))
       .recover {
         case e =>
           println(e.getMessage)
@@ -99,7 +99,7 @@ class VehicleCentricMatchingForRideHail(
       .foreach {
         case (c, schedule) =>
           val trip = RideHailTrip(List(c), schedule)
-          potentialTrips.append((trip, v, computeCost(trip, v)))
+          potentialTrips.append((trip, v, getCost(trip, v)))
       }
 
     // if no solo ride is possible, returns
@@ -128,7 +128,7 @@ class VehicleCentricMatchingForRideHail(
                 ) match {
                   case Some(schedule) =>
                     val t = RideHailTrip(t1.requests ++ t2.requests, schedule)
-                    val cost = computeCost2(t, v)
+                    val cost = getCost(t, v)
                     if (potentialTripsWithKPassengers.size == 2) {
                       // then replace the trip with highest sum of delays
                       val ((_, _, tripWithLargestDelayCost), index) =
@@ -149,19 +149,27 @@ class VehicleCentricMatchingForRideHail(
     potentialTrips.toList
   }
 
-//  private def greedyAssignment(trips: List[AssignmentKey]): List[AssignmentKey] = {
-//    val greedyAssignmentList = mutable.ListBuffer.empty[AssignmentKey]
-//    var tripsByPoolSize = trips.sortBy(-_._1.requests.size)
-//    while (tripsByPoolSize.nonEmpty) {
-//      val maxPool = tripsByPoolSize.head._1.requests.size
-//      val (trip, vehicle, cost) = tripsByPoolSize.filter(_._1.requests.size == maxPool).minBy(_._3)
-//      greedyAssignmentList.append((trip, vehicle, cost))
-//      tripsByPoolSize = tripsByPoolSize.filter(t => t._2 != vehicle && !t._1.requests.exists(trip.requests.contains))
-//    }
-//    greedyAssignmentList.toList
-//  }
+  private def getCost(trip: RideHailTrip, vehicle: VehicleAndSchedule): Double = {
+    computeCost2(trip, vehicle)
+  }
+
+  private def getAssignment(trips: List[AssignmentKey]): List[AssignmentKey] = {
+    greedyAssignment2(trips)
+  }
 
   private def greedyAssignment(trips: List[AssignmentKey]): List[AssignmentKey] = {
+    val greedyAssignmentList = mutable.ListBuffer.empty[AssignmentKey]
+    var tripsByPoolSize = trips.sortBy(-_._1.requests.size)
+    while (tripsByPoolSize.nonEmpty) {
+      val maxPool = tripsByPoolSize.head._1.requests.size
+      val (trip, vehicle, cost) = tripsByPoolSize.filter(_._1.requests.size == maxPool).minBy(_._3)
+      greedyAssignmentList.append((trip, vehicle, cost))
+      tripsByPoolSize = tripsByPoolSize.filter(t => t._2 != vehicle && !t._1.requests.exists(trip.requests.contains))
+    }
+    greedyAssignmentList.toList
+  }
+
+  private def greedyAssignment2(trips: List[AssignmentKey]): List[AssignmentKey] = {
     val greedyAssignmentList = mutable.ListBuffer.empty[AssignmentKey]
     var tripsByPoolSize = trips.sortBy(_._3)
     while (tripsByPoolSize.nonEmpty) {
