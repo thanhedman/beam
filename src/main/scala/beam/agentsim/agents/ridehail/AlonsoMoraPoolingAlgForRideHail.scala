@@ -170,9 +170,10 @@ class AlonsoMoraPoolingAlgForRideHail(
 object AlonsoMoraPoolingAlgForRideHail {
 
   def computeCost(trip: RideHailTrip, vehicle: VehicleAndSchedule): Double = {
-    val alpha = 1 - trip.sumOfDelays / trip.upperBoundDelays
-    val beta = 1
-    -1 * alpha * trip.requests.size + beta * (vehicle.getFreeSeats - trip.requests.size)
+    val empty = vehicle.getSeatingCapacity - trip.requests.size - vehicle.getNoPassengers
+    val largeConstant = trip.upperBoundDelays
+    val cost = trip.sumOfDelays + empty * largeConstant
+    cost
   }
 
   def checkDistance(r: MobilityRequest, schedule: List[MobilityRequest], searchRadius: Double): Boolean = {
@@ -458,7 +459,6 @@ object AlonsoMoraPoolingAlgForRideHail {
         .reverse
         .toList,
       veh.geofence,
-      veh.vehicleType.seatingCapacity,
       remainingRangeInMeters
     )
     res
@@ -517,14 +517,15 @@ object AlonsoMoraPoolingAlgForRideHail {
     vehicle: BeamVehicle,
     schedule: List[MobilityRequest],
     geofence: Option[Geofence],
-    seatsAvailable: Int,
     vehicleRemainingRangeInMeters: Double = Double.MaxValue
   ) extends RVGraphNode {
     private val numberOfPassengers: Int =
       schedule.takeWhile(_.tag != EnRoute).count(req => req.person.isDefined && req.tag == Dropoff)
+    private val seatingCapacity: Int = vehicle.beamVehicleType.seatingCapacity
     override def getId: String = vehicle.id.toString
     def getNoPassengers: Int = numberOfPassengers
-    def getFreeSeats: Int = seatsAvailable - numberOfPassengers
+    def getSeatingCapacity: Int = seatingCapacity
+    def getFreeSeats: Int = seatingCapacity - numberOfPassengers
     def getRequestWithCurrentVehiclePosition: MobilityRequest = schedule.find(_.tag == EnRoute).getOrElse(schedule.head)
   }
   // Trip that can be satisfied by one or more ride hail vehicle
@@ -533,9 +534,9 @@ object AlonsoMoraPoolingAlgForRideHail {
       with RTVGraphNode {
     var sumOfDelays: Int = 0
     var upperBoundDelays: Int = 0
-    schedule.foreach { r =>
-      sumOfDelays += (r.serviceTime - r.baselineNonPooledTime)
-      upperBoundDelays += (r.upperBoundTime - r.baselineNonPooledTime)
+    schedule.foreach { s =>
+      sumOfDelays += (s.serviceTime - s.baselineNonPooledTime)
+      upperBoundDelays += (s.upperBoundTime - s.baselineNonPooledTime)
     }
     //val sumOfDelaysAsFraction: Double = sumOfDelays / upperBoundDelays.toDouble
 

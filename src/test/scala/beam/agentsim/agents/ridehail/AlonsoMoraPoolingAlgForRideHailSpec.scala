@@ -167,9 +167,9 @@ object AlonsoMoraPoolingAlgForRideHailSpec {
     import scala.concurrent.duration._
     val vehicleType = beamScenario.vehicleTypes(Id.create("beamVilleCar", classOf[BeamVehicleType]))
     val v1: VehicleAndSchedule =
-      createVehicleAndSchedule("v1", vehicleType, new Coord(5000, 5000), 8.hours.toSeconds.toInt, None, 4)
+      createVehicleAndSchedule("v1", vehicleType, new Coord(5000, 5000), 8.hours.toSeconds.toInt, None)
     val v2: VehicleAndSchedule =
-      createVehicleAndSchedule("v2", vehicleType, new Coord(2000, 2000), 8.hours.toSeconds.toInt, None, 4)
+      createVehicleAndSchedule("v2", vehicleType, new Coord(2000, 2000), 8.hours.toSeconds.toInt, None)
     val p1Req: CustomerRequest =
       createPersonRequest(
         makeVehPersonId("p1"),
@@ -220,8 +220,7 @@ object AlonsoMoraPoolingAlgForRideHailSpec {
         vehicleType,
         new Coord(5000, 5000),
         8.hours.toSeconds.toInt,
-        Some(Geofence(10000, 10000, 13400)),
-        4
+        Some(Geofence(10000, 10000, 13400))
       )
     val v2: VehicleAndSchedule =
       createVehicleAndSchedule(
@@ -229,8 +228,7 @@ object AlonsoMoraPoolingAlgForRideHailSpec {
         vehicleType,
         new Coord(2000, 2000),
         8.hours.toSeconds.toInt,
-        Some(Geofence(10000, 10000, 13400)),
-        4
+        Some(Geofence(10000, 10000, 13400))
       )
     val p1Req: CustomerRequest =
       createPersonRequest(
