@@ -187,20 +187,20 @@ class PoolingAlonsoMora(val rideHailManager: RideHailManager)
 //          rideHailManager.beamServices,
 //          skimmer
 //        )
-//      val alg =
-//        new AsyncAlonsoMoraAlgForRideHail(
-//          spatialPoolCustomerReqs,
-//          availVehicles,
-//          rideHailManager.beamServices,
-//          skimmer
-//        )
       val alg =
-        new AlonsoMoraPoolingAlgForRideHail(
+        new AsyncAlonsoMoraAlgForRideHail(
           spatialPoolCustomerReqs,
           availVehicles,
           rideHailManager.beamServices,
           skimmer
         )
+//      val alg =
+//        new AlonsoMoraPoolingAlgForRideHail(
+//          spatialPoolCustomerReqs,
+//          availVehicles,
+//          rideHailManager.beamServices,
+//          skimmer
+//        )
 
       import scala.concurrent.duration._
       val assignment = try {
