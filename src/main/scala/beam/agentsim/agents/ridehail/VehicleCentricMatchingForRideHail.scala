@@ -189,8 +189,8 @@ class VehicleCentricMatchingForRideHail(
   }
 
   def computeCost2(trip: RideHailTrip, vehicle: VehicleAndSchedule): Double = {
-    val alpha = 0.75
-    val beta = 0.25
+    val alpha = 0.60
+    val beta = 0.40
     val passengers = trip.requests.size + vehicle.getNoPassengers
     val capacity = vehicle.getSeatingCapacity
     val delay = trip.sumOfDelays
