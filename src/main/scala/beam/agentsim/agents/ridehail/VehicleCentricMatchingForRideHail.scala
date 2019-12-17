@@ -150,11 +150,11 @@ class VehicleCentricMatchingForRideHail(
   }
 
   private def getCost(trip: RideHailTrip, vehicle: VehicleAndSchedule): Double = {
-    computeCost2(trip, vehicle)
+    computeCost(trip, vehicle)
   }
 
   private def getAssignment(trips: List[AssignmentKey]): List[AssignmentKey] = {
-    greedyAssignment2(trips)
+    greedyAssignment(trips)
   }
 
   private def greedyAssignment(trips: List[AssignmentKey]): List[AssignmentKey] = {
@@ -162,9 +162,17 @@ class VehicleCentricMatchingForRideHail(
     var tripsByPoolSize = trips.sortBy(-_._1.requests.size)
     while (tripsByPoolSize.nonEmpty) {
       val maxPool = tripsByPoolSize.head._1.requests.size
-      val (trip, vehicle, cost) = tripsByPoolSize.filter(_._1.requests.size == maxPool).minBy(_._3)
-      greedyAssignmentList.append((trip, vehicle, cost))
-      tripsByPoolSize = tripsByPoolSize.filter(t => t._2 != vehicle && !t._1.requests.exists(trip.requests.contains))
+      val Rok = collection.mutable.HashSet.empty[CustomerRequest]
+      val Vok = collection.mutable.HashSet.empty[VehicleAndSchedule]
+      val tripsWithPoolSizeMaxPool = tripsByPoolSize.filter(_._1.requests.size == maxPool).sortBy(_._3)
+      for((trip, vehicle, cost) <- tripsWithPoolSizeMaxPool) {
+        if(!(Vok contains vehicle) && !(trip.requests exists (r => Rok contains r))) {
+          trip.requests.foreach(Rok.add)
+          Vok.add(vehicle)
+          greedyAssignmentList.append((trip, vehicle, cost))
+        }
+      }
+      tripsByPoolSize = tripsByPoolSize.filter(t => !(Vok contains t._2) && t._1.requests.exists(r => Rok contains r))
     }
     greedyAssignmentList.toList
   }
