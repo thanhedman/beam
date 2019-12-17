@@ -179,7 +179,7 @@ class VehicleCentricMatchingForRideHail(
 
   private def greedyAssignment2(trips: List[AssignmentKey]): List[AssignmentKey] = {
     val greedyAssignmentList = mutable.ListBuffer.empty[AssignmentKey]
-    var tripsByPoolSize = trips.sortBy(- _._3)
+    var tripsByPoolSize = trips.sortBy(_._3)
     while (tripsByPoolSize.nonEmpty) {
       val (trip, vehicle, cost) = tripsByPoolSize.head
       greedyAssignmentList.append((trip, vehicle, cost))
@@ -196,6 +196,6 @@ class VehicleCentricMatchingForRideHail(
     val delay = trip.sumOfDelays
     val maximum_delay = trip.upperBoundDelays
     val cost = passengers + (1 - delay/maximum_delay)
-    cost
+    -1 * cost
   }
 }
