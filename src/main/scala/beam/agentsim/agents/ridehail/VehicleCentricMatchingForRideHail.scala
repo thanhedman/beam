@@ -195,7 +195,7 @@ class VehicleCentricMatchingForRideHail(
     val capacity = vehicle.getSeatingCapacity
     val delay = trip.sumOfDelays
     val maximum_delay = trip.upperBoundDelays
-    val cost = passengers + (1 - delay/maximum_delay)
+    val cost = passengers + (1 - delay/maximum_delay.toDouble)
     -1 * cost
   }
 }
