@@ -23,6 +23,7 @@ import scala.collection.immutable.List
 import scala.collection.mutable.ListBuffer
 import beam.sim.config.BeamConfig.Beam.Agentsim.Agents.RideHail.AllocationManager
 
+import scala.collection.mutable
 import scala.concurrent.Future
 
 class AlonsoMoraPoolingAlgForRideHail(
@@ -225,6 +226,84 @@ object AlonsoMoraPoolingAlgForRideHail {
 
     greedyAssignmentList.toList
   }
+
+//  def optimalAssignment(
+//    rTvG: RTVGraph,
+//    maximumVehCapacity: Int
+//  ): List[(RideHailTrip, VehicleAndSchedule, Double)] = {
+//
+//    val trips = rTvG
+//      .vertexSet()
+//      .asScala
+//      .filter(t => t.isInstanceOf[RideHailTrip])
+//      .map { t =>
+//        val trip = t.asInstanceOf[RideHailTrip]
+//        val vehicle = rTvG
+//          .getEdgeTarget(
+//            rTvG
+//              .outgoingEdgesOf(trip)
+//              .asScala
+//              .filter(e => rTvG.getEdgeTarget(e).isInstanceOf[VehicleAndSchedule])
+//              .head
+//          )
+//          .asInstanceOf[VehicleAndSchedule]
+//        val cost = AlonsoMoraPoolingAlgForRideHail.computeCost(trip, vehicle)
+//        (trip, vehicle, cost)
+//      }
+//      .toList
+//
+//    val combinations = new mutable.ListBuffer[List[(RideHailTrip, VehicleAndSchedule, Double)]]
+//
+//    for(trip <- trips) {
+//      val tempComb = new mutable.ListBuffer[List[(RideHailTrip, VehicleAndSchedule, Double)]]
+//      for(comb <- combinations) {
+//        val alternatives = comb.filter(_._1 == trip._1)
+//        if(alternatives.isEmpty) {
+//          tempComb.append(comb ++ List(trip))
+//        } else {
+//
+//        }
+//      }
+//    }
+//
+//
+//
+//    val Rok = collection.mutable.HashSet.empty[CustomerRequest]
+//    val Vok = collection.mutable.HashSet.empty[VehicleAndSchedule]
+//    val greedyAssignmentList = ListBuffer.empty[(RideHailTrip, VehicleAndSchedule, Double)]
+//    for (k <- maximumVehCapacity to 1 by -1) {
+//      val sortedList = rTvG
+//        .vertexSet()
+//        .asScala
+//        .filter(t => t.isInstanceOf[RideHailTrip] && t.asInstanceOf[RideHailTrip].requests.size == k)
+//        .map { t =>
+//          val trip = t.asInstanceOf[RideHailTrip]
+//          val vehicle = rTvG
+//            .getEdgeTarget(
+//              rTvG
+//                .outgoingEdgesOf(trip)
+//                .asScala
+//                .filter(e => rTvG.getEdgeTarget(e).isInstanceOf[VehicleAndSchedule])
+//                .head
+//            )
+//            .asInstanceOf[VehicleAndSchedule]
+//          val cost = AlonsoMoraPoolingAlgForRideHail.computeCost(trip, vehicle)
+//          (trip, vehicle, cost)
+//        }
+//        .toList
+//        .sortBy(_._3)
+//
+//      sortedList.foreach {
+//        case (trip, vehicle, cost) if !(Vok contains vehicle) && !(trip.requests exists (r => Rok contains r)) =>
+//          trip.requests.foreach(Rok.add)
+//          Vok.add(vehicle)
+//          greedyAssignmentList.append((trip, vehicle, cost))
+//        case _ =>
+//      }
+//    }
+//
+//    greedyAssignmentList.toList
+//  }
 
   // ************ Helper functions ************
   def getTimeDistanceAndCost(src: MobilityRequest, dst: MobilityRequest, skimmer: BeamSkimmer): Skim = {
