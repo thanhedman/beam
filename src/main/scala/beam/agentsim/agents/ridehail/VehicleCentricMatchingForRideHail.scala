@@ -6,6 +6,7 @@ import beam.router.BeamSkimmer
 import beam.router.Modes.BeamMode
 import beam.sim.BeamServices
 import beam.sim.common.GeoUtils
+import com.vividsolutions.jts.geom.{Coordinate, GeometryFactory}
 import org.matsim.api.core.v01.Coord
 import org.matsim.core.utils.collections.QuadTree
 
@@ -29,6 +30,7 @@ class VehicleCentricMatchingForRideHail(
 
   type AssignmentKey = (RideHailTrip, VehicleAndSchedule, Double)
   private val maxSolutionAlternativeForKPassengers: Int = Int.MaxValue
+  private val maxAngleDirection: Int = 90
 
   def matchAndAssign(tick: Int): Future[List[AssignmentKey]] = {
     Future
@@ -75,16 +77,27 @@ class VehicleCentricMatchingForRideHail(
       val i = v.schedule.indexWhere(_.tag == EnRoute)
       val mainTasks = v.schedule.slice(0, i)
       customers = customers
-        .filter(r => AlonsoMoraPoolingAlgForRideHail.checkDistance(r.dropoff, mainTasks, searchRadius))
+        .filter (
+          r => mainTasks.foldLeft(false) { (acc, t) =>
+            acc || (t.pickupRequest match {
+              case Some(pickup) =>
+                getAngle(pickup.activity.getCoord, t.activity.getCoord, r.dropoff.activity.getCoord) <= maxAngleDirection
+              case _ =>
+                false
+            })
+          }
+        )
         .sortBy(r => GeoUtils.minkowskiDistFormula(center, r.pickup.activity.getCoord))
     } else {
       // if vehicle is empty, prioritize the destination of the current closest customers
       customers = customers.sortBy(r => GeoUtils.minkowskiDistFormula(center, r.pickup.activity.getCoord))
-      val mainRequests = customers.slice(0, Math.max(customers.size, 1))
+      val mainRequests = customers.slice(0, Math.min(customers.size, 1))
       customers = mainRequests ::: customers
         .drop(mainRequests.size)
-        .filter(
-          r => AlonsoMoraPoolingAlgForRideHail.checkDistance(r.dropoff, mainRequests.map(_.dropoff), searchRadius)
+        .filter (
+          r => mainRequests.foldLeft(false) { (acc, t) =>
+            acc || getAngle(t.pickup.activity.getCoord, t.dropoff.activity.getCoord, r.dropoff.activity.getCoord) <= maxAngleDirection
+          }
         )
     }
 
@@ -148,6 +161,36 @@ class VehicleCentricMatchingForRideHail(
       potentialTrips.appendAll(tripsWithKPassengers)
     }
     potentialTrips.toList
+  }
+
+  private def angleBetween2Lines(org1: Coord, dest1: Coord, org2: Coord, dest2: Coord): Double = {
+    val angle1: Double = Math.atan2(dest1.getY - org1.getY, dest1.getX - org1.getX)
+    val angle2: Double = Math.atan2(dest2.getY - org2.getY, dest2.getX - org2.getX)
+    val degrees = Math.toDegrees(angle1 - angle2)
+    Math.abs(degrees)
+  }
+
+  private def getAngle(origin: Coord, dest1: Coord, dest2: Coord): Double = {
+    import org.geotools.referencing.GeodeticCalculator
+    import org.geotools.referencing.crs.DefaultGeographicCRS
+    val crs = DefaultGeographicCRS.WGS84
+    //val crs = MGC.getCRS(services.beamConfig.beam.spatial.localCRS)
+    val orgWgs = services.geo.utm2Wgs.transform(origin)
+    val dst1Wgs = services.geo.utm2Wgs.transform(dest1)
+    val dst2Wgs = services.geo.utm2Wgs.transform(dest2)
+    //val crs = CRS.decode(services.beamConfig.beam.spatial.localCRS)
+    val calc = new GeodeticCalculator(crs)
+    val gf = new GeometryFactory()
+    val point1 = gf.createPoint(new Coordinate(orgWgs.getX, orgWgs.getY))
+    calc.setStartingGeographicPoint(point1.getX, point1.getY)
+    val point2 = gf.createPoint(new Coordinate(dst1Wgs.getX, dst1Wgs.getY))
+    calc.setDestinationGeographicPoint(point2.getX, point2.getY)
+    val azimuth1 = calc.getAzimuth
+    val point3 = gf.createPoint(new Coordinate(dst2Wgs.getX, dst2Wgs.getY))
+    calc.setDestinationGeographicPoint(point3.getX, point3.getY)
+    val azimuth2 = calc.getAzimuth
+    val degrees = azimuth2 - azimuth1
+    Math.abs(degrees)
   }
 
   private def getCost(trip: RideHailTrip, vehicle: VehicleAndSchedule): Double = {
