@@ -28,7 +28,7 @@ class VehicleCentricMatchingForRideHail(
   private val searchRadius = waitingTimeInSec * BeamSkimmer.speedMeterPerSec(BeamMode.CAV)
 
   type AssignmentKey = (RideHailTrip, VehicleAndSchedule, Double)
-  private val maxSolutionAlternativeForKPassengers: Int = 2
+  private val maxSolutionAlternativeForKPassengers: Int = Int.MaxValue
 
   def matchAndAssign(tick: Int): Future[List[AssignmentKey]] = {
     Future
@@ -190,15 +190,25 @@ class VehicleCentricMatchingForRideHail(
   }
 
   def computeCost2(trip: RideHailTrip, vehicle: VehicleAndSchedule): Double = {
-    val alpha = 0.50
-    val beta = 0.50
     val passengers = trip.requests.size + vehicle.getNoPassengers
-    val capacity = vehicle.getSeatingCapacity
     val delay = trip.sumOfDelays
     val maximum_delay = trip.upperBoundDelays
     val cost = passengers + (1 - delay/maximum_delay.toDouble)
     -1 * cost
-//    val cost = alpha * (1-(passengers/capacity.toDouble)) + beta * delay/maximum_delay.toDouble
-//    cost
   }
+
+  def computeCost3(trip: RideHailTrip, vehicle: VehicleAndSchedule, alpha: Double, beta: Double): Double = {
+    val passengers = trip.requests.size + vehicle.getNoPassengers
+    val capacity = vehicle.getSeatingCapacity
+    val delay = trip.sumOfDelays
+    val maximum_delay = trip.upperBoundDelays
+    val cost = alpha * (1-(passengers/capacity.toDouble)) + beta * delay/maximum_delay.toDouble
+    cost
+  }
+
+  def computeCost3_50to50(trip: RideHailTrip, vehicle: VehicleAndSchedule) = computeCost3(trip, vehicle, 0.50, 0.50)
+  def computeCost3_60to40(trip: RideHailTrip, vehicle: VehicleAndSchedule) = computeCost3(trip, vehicle, 0.60, 0.40)
+  def computeCost3_75to25(trip: RideHailTrip, vehicle: VehicleAndSchedule) = computeCost3(trip, vehicle, 0.75, 0.25)
+  def computeCost3_95to05(trip: RideHailTrip, vehicle: VehicleAndSchedule) = computeCost3(trip, vehicle, 0.95, 0.05)
+
 }
