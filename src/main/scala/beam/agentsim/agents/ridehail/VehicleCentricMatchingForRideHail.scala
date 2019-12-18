@@ -28,6 +28,7 @@ class VehicleCentricMatchingForRideHail(
   private val searchRadius = waitingTimeInSec * BeamSkimmer.speedMeterPerSec(BeamMode.CAV)
 
   type AssignmentKey = (RideHailTrip, VehicleAndSchedule, Double)
+  private val maxSolutionAlternativeForKPassengers: Int = 2
 
   def matchAndAssign(tick: Int): Future[List[AssignmentKey]] = {
     Future
@@ -109,7 +110,7 @@ class VehicleCentricMatchingForRideHail(
     // building pooled rides from bottom up
     val numPassengers = v.getFreeSeats
     for (k <- 2 to numPassengers) {
-      val potentialTripsWithKPassengers = mutable.ListBuffer.empty[AssignmentKey]
+      val tripsWithKPassengers = mutable.ListBuffer.empty[AssignmentKey]
       potentialTrips.zipWithIndex.foreach {
         case ((t1, _, _), pt1_index) =>
           potentialTrips
@@ -120,31 +121,31 @@ class VehicleCentricMatchingForRideHail(
             }
             .foreach {
               case (t2, _, _) =>
+                val requests = t1.requests ++ t2.requests
                 getRidehailSchedule(
                   v.schedule,
-                  (t1.requests ++ t2.requests).flatMap(x => List(x.pickup, x.dropoff)),
+                  requests.flatMap(x => List(x.pickup, x.dropoff)),
                   v.vehicleRemainingRangeInMeters.toInt,
                   skimmer
                 ) match {
                   case Some(schedule) =>
-                    val t = RideHailTrip(t1.requests ++ t2.requests, schedule)
+                    val t = RideHailTrip(requests, schedule)
                     val cost = getCost(t, v)
-                    if (potentialTripsWithKPassengers.size == 2) {
+                    if (tripsWithKPassengers.size == maxSolutionAlternativeForKPassengers) {
                       // then replace the trip with highest sum of delays
-                      val ((_, _, tripWithLargestDelayCost), index) =
-                        potentialTripsWithKPassengers.filter(_._1.requests.size == k).zipWithIndex.maxBy(_._1._3)
-                      if (tripWithLargestDelayCost > cost) {
-                        potentialTripsWithKPassengers.patch(index, Seq((t, v, cost)), 1)
+                      val ((_, _, tripWithHighestCost), index) = tripsWithKPassengers.zipWithIndex.maxBy(_._1._3)
+                      if (tripWithHighestCost > cost) {
+                        tripsWithKPassengers.remove(index)
                       }
-                    } else {
-                      // then add the new trip
-                      potentialTripsWithKPassengers.append((t, v, cost))
+                    }
+                    if(tripsWithKPassengers.size < maxSolutionAlternativeForKPassengers) {
+                      tripsWithKPassengers.append((t, v, cost))
                     }
                   case _ =>
                 }
             }
       }
-      potentialTrips.appendAll(potentialTripsWithKPassengers)
+      potentialTrips.appendAll(tripsWithKPassengers)
     }
     potentialTrips.toList
   }
@@ -195,9 +196,9 @@ class VehicleCentricMatchingForRideHail(
     val capacity = vehicle.getSeatingCapacity
     val delay = trip.sumOfDelays
     val maximum_delay = trip.upperBoundDelays
-    //val cost = passengers + (1 - delay/maximum_delay.toDouble)
-    //-1 * cost
-    val cost = alpha * (1-(passengers/capacity.toDouble)) + beta * delay/maximum_delay.toDouble
-    cost
+    val cost = passengers + (1 - delay/maximum_delay.toDouble)
+    -1 * cost
+//    val cost = alpha * (1-(passengers/capacity.toDouble)) + beta * delay/maximum_delay.toDouble
+//    cost
   }
 }
