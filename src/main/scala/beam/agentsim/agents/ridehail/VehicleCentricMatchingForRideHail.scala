@@ -194,11 +194,11 @@ class VehicleCentricMatchingForRideHail(
   }
 
   private def getCost(trip: RideHailTrip, vehicle: VehicleAndSchedule): Double = {
-    computeCost3_95to05(trip, vehicle)
+    computeCost(trip, vehicle)
   }
 
   private def getAssignment(trips: List[AssignmentKey]): List[AssignmentKey] = {
-    greedyAssignment2(trips)
+    greedyAssignment(trips)
   }
 
   private def greedyAssignment(trips: List[AssignmentKey]): List[AssignmentKey] = {
