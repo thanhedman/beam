@@ -1,6 +1,5 @@
 package beam.agentsim.agents.ridehail
 
-import beam.agentsim.agents.{Dropoff, EnRoute, MobilityRequest, Pickup}
 import beam.agentsim.agents.ridehail.AlonsoMoraPoolingAlgForRideHail._
 import beam.router.BeamSkimmer
 import beam.router.Modes.BeamMode
@@ -12,6 +11,7 @@ import org.matsim.core.utils.collections.QuadTree
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.List
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
@@ -29,14 +29,13 @@ class AsyncAlonsoMoraAlgForRideHail(
     beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.waitingTimeInSec
 
   private def matchVehicleRequests(v: VehicleAndSchedule): (List[RTVGraphNode], List[(RTVGraphNode, RTVGraphNode)]) = {
-    import scala.collection.mutable.{ListBuffer => MListBuffer}
-    val vertices = MListBuffer.empty[RTVGraphNode]
-    val edges = MListBuffer.empty[(RTVGraphNode, RTVGraphNode)]
-    val finalRequestsList = MListBuffer.empty[RideHailTrip]
+    val vertices = ListBuffer.empty[RTVGraphNode]
+    val edges = ListBuffer.empty[(RTVGraphNode, RTVGraphNode)]
+    val finalRequestsList = ListBuffer.empty[RideHailTrip]
     val requestWithCurrentVehiclePosition = v.getRequestWithCurrentVehiclePosition
     val center = requestWithCurrentVehiclePosition.activity.getCoord
     val searchRadius = waitingTimeInSec * BeamSkimmer.speedMeterPerSec(BeamMode.CAV)
-    var requests = v.geofence match {
+    val requests = v.geofence match {
       case Some(gf) =>
         val gfCenter = new Coord(gf.geofenceX, gf.geofenceY)
         spatialDemand
@@ -51,16 +50,11 @@ class AsyncAlonsoMoraAlgForRideHail(
       case _ =>
         spatialDemand.getDisk(center.getX, center.getY, searchRadius).asScala.toList
     }
-    requests = requests.sortBy(r => GeoUtils.minkowskiDistFormula(center, r.pickup.activity.getCoord))
-    if (requestWithCurrentVehiclePosition.tag == EnRoute) {
-      val i = v.schedule.indexWhere(_.tag == EnRoute)
-      val nextTasks = v.schedule.slice(0, i)
-      requests = requests.filter(r => AlonsoMoraPoolingAlgForRideHail.checkDistance(r.dropoff, nextTasks, searchRadius))
-    }
     requests
-      .take(solutionSpaceSizePerVehicle) foreach (
+      .sortBy(r => GeoUtils.minkowskiDistFormula(center, r.pickup.activity.getCoord))
+      .take(solutionSpaceSizePerVehicle).foreach (
       r =>
-        AlonsoMoraPoolingAlgForRideHail.getRidehailSchedule(
+        getRidehailSchedule(
           v.schedule,
           List(r.pickup, r.dropoff),
           v.vehicleRemainingRangeInMeters.toInt,
@@ -76,29 +70,27 @@ class AsyncAlonsoMoraAlgForRideHail(
         }
     )
     if (finalRequestsList.nonEmpty) {
-      for (k <- 2 until v.getFreeSeats + 1) {
-        val kRequestsList = MListBuffer.empty[RideHailTrip]
-        for {
-          t1 <- finalRequestsList
-          t2 <- finalRequestsList
+      for (k <- 2 to v.getFreeSeats) {
+        val kRequestsList = ListBuffer.empty[RideHailTrip]
+        for (t1 <- finalRequestsList) {
+          for (t2 <- finalRequestsList
             .drop(finalRequestsList.indexOf(t1))
-            .withFilter(
-              x => !(x.requests exists (s => t1.requests contains s)) && (t1.requests.size + x.requests.size) == k
-            )
-        } yield {
-          AlonsoMoraPoolingAlgForRideHail.getRidehailSchedule(
-            v.schedule,
-            (t1.requests ++ t2.requests).flatMap(x => List(x.pickup, x.dropoff)),
-            v.vehicleRemainingRangeInMeters.toInt,
-            skimmer
-          ) match {
-            case Some(schedule) =>
+            .filter(
+              x =>
+                !(x.requests exists (s => t1.requests contains s)) && (t1.requests.size + x.requests.size) == k
+            )) {
+            getRidehailSchedule(
+              v.schedule,
+              (t1.requests ++ t2.requests).flatMap(x => List(x.pickup, x.dropoff)),
+              v.vehicleRemainingRangeInMeters.toInt,
+              skimmer
+            ).map { schedule =>
               val t = RideHailTrip(t1.requests ++ t2.requests, schedule)
               kRequestsList append t
               vertices append t
-              t.requests.foldLeft(()) { case (_, r) => edges append ((r, t)) }
+              t.requests.foreach(r => edges.append((r, t)))
               edges append ((t, v))
-            case _ =>
+            }
           }
         }
         finalRequestsList.appendAll(kRequestsList)
