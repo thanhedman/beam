@@ -30,7 +30,7 @@ class VehicleCentricMatchingForRideHail(
 
   type AssignmentKey = (RideHailTrip, VehicleAndSchedule, Double)
   private val maxSolutionAlternativeForKPassengers: Int = Int.MaxValue
-  private val maxAngleDirection: Int = 45
+  private val maxAngleDirection: Double = 22.5
 
   def matchAndAssign(tick: Int): Future[List[AssignmentKey]] = {
     Future
