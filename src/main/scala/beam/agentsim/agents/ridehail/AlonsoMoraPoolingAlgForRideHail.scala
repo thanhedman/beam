@@ -39,10 +39,8 @@ class AlonsoMoraPoolingAlgForRideHail(
 ) {
 
   // Methods below should be kept as def (instead of val) to allow automatic value updating
-  private def alonsoMora: AllocationManager.AlonsoMora =
-    beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora
-  private def solutionSpaceSizePerVehicle: Int = alonsoMora.solutionSpaceSizePerVehicle
-  private def waitingTimeInSec: Int = alonsoMora.waitingTimeInSec
+  private def solutionSpaceSizePerVehicle: Int = Integer.MAX_VALUE
+  private def waitingTimeInSec: Int = beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.waitingTimeInSec
 
   // Request Vehicle Graph
   private def pairwiseRVGraph: RVGraph = {
