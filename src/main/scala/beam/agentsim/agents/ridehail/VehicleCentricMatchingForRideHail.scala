@@ -100,14 +100,14 @@ class VehicleCentricMatchingForRideHail(
                   case Some(schedule) =>
                     val t = RideHailTrip(requests, schedule)
                     val cost = MatchmakingUtils.computeGreedyCost(t, v)
-                    if (tripsWithKPassengers.size == solutionSpaceSizePerVehicle) {
+                    if (tripsWithKPassengers.size == Integer.MAX_VALUE) {
                       // then replace the trip with highest sum of delays
                       val ((_, _, tripWithHighestCost), index) = tripsWithKPassengers.zipWithIndex.maxBy(_._1._3)
                       if (tripWithHighestCost > cost) {
                         tripsWithKPassengers.remove(index)
                       }
                     }
-                    if(tripsWithKPassengers.size < solutionSpaceSizePerVehicle) {
+                    if(tripsWithKPassengers.size < Integer.MAX_VALUE) {
                       tripsWithKPassengers.append((t, v, cost))
                     }
                   case _ =>
