@@ -80,7 +80,7 @@ class LoadOverTimeAnalysis(simMetricCollector: SimulationMetricCollector)
           SimulationTime(event.getTime.toInt),
           Map(
             SimulationMetricCollector.defaultMetricValueName -> 1.0,
-            "averageLoad"                                    -> currentEventAverageLoad,
+            "averageLoad"                                    -> energyInkWh,
             "lon"                                            -> refuelSessionEvent.stall.locationUTM.getX,
             "lat"                                            -> refuelSessionEvent.stall.locationUTM.getY
           ),
