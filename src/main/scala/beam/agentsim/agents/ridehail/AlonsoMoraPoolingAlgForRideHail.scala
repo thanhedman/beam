@@ -166,63 +166,63 @@ class AlonsoMoraPoolingAlgForRideHail(
   }
 
 
-
-def optimalAssignment(rTvG: RTVGraph): Unit = {
-  val satisfiedSets = mutable.HashSet.empty[CustomerRequest]
-  val combinations = rTvG
-    .vertexSet()
-    .asScala
-    .filter(t => t.isInstanceOf[RideHailTrip])
-    .map { t =>
-      val trip = t.asInstanceOf[RideHailTrip]
-      val vehicle = rTvG
-        .getEdgeTarget(
-          rTvG
-            .outgoingEdgesOf(trip)
-            .asScala
-            .filter(e => rTvG.getEdgeTarget(e).isInstanceOf[VehicleAndSchedule])
-            .head
-        )
-        .asInstanceOf[VehicleAndSchedule]
-      trip.requests.foreach(satisfiedSets.add)
-      (trip, vehicle, trip.requests.sortBy(_.getId).map(_.getId).mkString(","))
-    }
-    .toList
-  val trips = combinations.map(_._3).distinct.toArray
-
-
-  val requests = spatialDemand.values().asScala.toArray
-  val unsatisfiedRequests = ListBuffer(requests)
-  val vehicles = supply.toArray
-
-  import scala.language.implicitConversions
-  implicit val model = MPModel(SolverLib.oJSolver)
-
-  val delays = ListBuffer.empty[Expression]
-  combinations.foreach {
-    case (trip, vehicle, cost, tripId) =>
-      val c_ij = trip.sumOfDelays
-      val i = trips.indexOf(trip.requests.sortBy(_.getId).map(_.getId).mkString(","))
-      val j = vehicles.indexOf(vehicle)
-      delays.append(c_ij * MPBinaryVar(s"x($i,$j)"))
-  }
-
-  val Epsilon_ij = ListBuffer.empty[Array[Boolean]]
-  vehicles.foreach(v => Epsilon_ij.append(trips.map(t => combinations.exists(c => c._4 == t && c._2 == v))))
-
-  val Chi_k = ListBuffer.empty[Boolean]
-  requests.foreach(r => Chi_k.append(!trips.exists(t => t contains r.getId)))
-
-
-  val epsilon = MPBinaryVar("epsilon")
-  val chi = MPBinaryVar("chi")
-  val i = tripsIdx.map(t => MPBinaryVar(s"x$t"))
-  val j = vehicles.map(v => MPBinaryVar(s"x$v"))
-  val k = requests.map(r => MPBinaryVar(s"x$r"))
-
-  minimize(sum())
-
-  }
+//
+//def optimalAssignment(rTvG: RTVGraph): Unit = {
+//  val satisfiedSets = mutable.HashSet.empty[CustomerRequest]
+//  val combinations = rTvG
+//    .vertexSet()
+//    .asScala
+//    .filter(t => t.isInstanceOf[RideHailTrip])
+//    .map { t =>
+//      val trip = t.asInstanceOf[RideHailTrip]
+//      val vehicle = rTvG
+//        .getEdgeTarget(
+//          rTvG
+//            .outgoingEdgesOf(trip)
+//            .asScala
+//            .filter(e => rTvG.getEdgeTarget(e).isInstanceOf[VehicleAndSchedule])
+//            .head
+//        )
+//        .asInstanceOf[VehicleAndSchedule]
+//      trip.requests.foreach(satisfiedSets.add)
+//      (trip, vehicle, trip.requests.sortBy(_.getId).map(_.getId).mkString(","))
+//    }
+//    .toList
+//  val trips = combinations.map(_._3).distinct.toArray
+//
+//
+//  val requests = spatialDemand.values().asScala.toArray
+//  val unsatisfiedRequests = ListBuffer(requests)
+//  val vehicles = supply.toArray
+//
+//  import scala.language.implicitConversions
+//  implicit val model = MPModel(SolverLib.oJSolver)
+//
+//  val delays = ListBuffer.empty[Expression]
+//  combinations.foreach {
+//    case (trip, vehicle, cost, tripId) =>
+//      val c_ij = trip.sumOfDelays
+//      val i = trips.indexOf(trip.requests.sortBy(_.getId).map(_.getId).mkString(","))
+//      val j = vehicles.indexOf(vehicle)
+//      delays.append(c_ij * MPBinaryVar(s"x($i,$j)"))
+//  }
+//
+//  val Epsilon_ij = ListBuffer.empty[Array[Boolean]]
+//  vehicles.foreach(v => Epsilon_ij.append(trips.map(t => combinations.exists(c => c._4 == t && c._2 == v))))
+//
+//  val Chi_k = ListBuffer.empty[Boolean]
+//  requests.foreach(r => Chi_k.append(!trips.exists(t => t contains r.getId)))
+//
+//
+//  val epsilon = MPBinaryVar("epsilon")
+//  val chi = MPBinaryVar("chi")
+//  val i = tripsIdx.map(t => MPBinaryVar(s"x$t"))
+//  val j = vehicles.map(v => MPBinaryVar(s"x$v"))
+//  val k = requests.map(r => MPBinaryVar(s"x$r"))
+//
+//  minimize(sum())
+//
+//  }
 
 }
 
