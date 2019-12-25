@@ -4,9 +4,7 @@ import beam.agentsim.agents.ridehail.AlonsoMoraPoolingAlgForRideHail._
 import beam.router.BeamSkimmer
 import beam.router.Modes.BeamMode
 import beam.sim.BeamServices
-import beam.sim.common.GeoUtils
 import org.jgrapht.graph.DefaultEdge
-import org.matsim.api.core.v01.Coord
 import org.matsim.core.utils.collections.QuadTree
 
 import scala.collection.JavaConverters._
@@ -22,10 +20,11 @@ class AsyncAlonsoMoraAlgForRideHail(
   skimmer: BeamSkimmer
 ) {
 
-  private val solutionSpaceSizePerVehicle = Integer.MAX_VALUE
-
+  //private val solutionSpaceSizePerVehicle = Integer.MAX_VALUE
   private val waitingTimeInSec =
     beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.waitingTimeInSec
+
+  private implicit val implicitServices = beamServices
 
   private def matchVehicleRequests(v: VehicleAndSchedule): (List[RTVGraphNode], List[(RTVGraphNode, RTVGraphNode)]) = {
     val vertices = ListBuffer.empty[RTVGraphNode]
@@ -34,26 +33,16 @@ class AsyncAlonsoMoraAlgForRideHail(
     val requestWithCurrentVehiclePosition = v.getRequestWithCurrentVehiclePosition
     val center = requestWithCurrentVehiclePosition.activity.getCoord
     val searchRadius = waitingTimeInSec * BeamSkimmer.speedMeterPerSec(BeamMode.CAV)
-    val requests = v.geofence match {
-      case Some(gf) =>
-        val gfCenter = new Coord(gf.geofenceX, gf.geofenceY)
-        spatialDemand
-          .getDisk(center.getX, center.getY, searchRadius)
-          .asScala
-          .filter(
-            r =>
-              GeoUtils.distFormula(r.pickup.activity.getCoord, gfCenter) <= gf.geofenceRadius &&
-              GeoUtils.distFormula(r.dropoff.activity.getCoord, gfCenter) <= gf.geofenceRadius
-          )
-          .toList
-      case _ =>
-        spatialDemand.getDisk(center.getX, center.getY, searchRadius).asScala.toList
-    }
-    requests
-      .sortBy(r => GeoUtils.minkowskiDistFormula(center, r.pickup.activity.getCoord))
-      .take(solutionSpaceSizePerVehicle).foreach (
+
+    // get all customer requests located at a proximity to the vehicle
+    var customers = MatchmakingUtils.getRequestsWithinGeofence(v, spatialDemand.getDisk(center.getX, center.getY, searchRadius).asScala.toList)
+
+    // heading same direction
+    customers = MatchmakingUtils.getNearbyRequestsHeadingSameDirection(v, customers)
+
+    customers.foreach (
       r =>
-        getRidehailSchedule(
+        MatchmakingUtils.getRidehailSchedule(
           v.schedule,
           List(r.pickup, r.dropoff),
           v.vehicleRemainingRangeInMeters.toInt,
@@ -78,7 +67,7 @@ class AsyncAlonsoMoraAlgForRideHail(
               x =>
                 !(x.requests exists (s => t1.requests contains s)) && (t1.requests.size + x.requests.size) == k
             )) {
-            getRidehailSchedule(
+            MatchmakingUtils.getRidehailSchedule(
               v.schedule,
               (t1.requests ++ t2.requests).flatMap(x => List(x.pickup, x.dropoff)),
               v.vehicleRemainingRangeInMeters.toInt,
@@ -121,6 +110,6 @@ class AsyncAlonsoMoraAlgForRideHail(
 
   def matchAndAssign(tick: Int): Future[List[(RideHailTrip, VehicleAndSchedule, Double)]] = {
     val V: Int = supply.foldLeft(0) { case (maxCapacity, v) => Math max (maxCapacity, v.getFreeSeats) }
-    asyncBuildOfRSVGraph().map(AlonsoMoraPoolingAlgForRideHail.greedyAssignment(_, V))
+    asyncBuildOfRSVGraph().map(greedyAssignment(_, V))
   }
 }
