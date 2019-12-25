@@ -1438,6 +1438,8 @@ object BeamConfig {
         filePath: java.lang.String,
         parkingCostScalingFactor: scala.Double,
         parkingFilePath: java.lang.String,
+        parkingStallChargerDefaultType: java.lang.String,
+        parkingStallChargerInitMethod: java.lang.String,
         parkingStallCountScalingFactor: scala.Double
       )
 
@@ -1452,6 +1454,12 @@ object BeamConfig {
             parkingFilePath =
               if (c.hasPathOrNull("parkingFilePath")) c.getString("parkingFilePath")
               else "/test/input/beamville/taz-parking.csv",
+            parkingStallChargerDefaultType =
+              if (c.hasPathOrNull("parkingStallChargerDefaultType")) c.getString("parkingStallChargerDefaultType")
+              else "Custom(150.0|DC)",
+            parkingStallChargerInitMethod =
+              if (c.hasPathOrNull("parkingStallChargerInitMethod")) c.getString("parkingStallChargerInitMethod")
+              else "FROM_FILE",
             parkingStallCountScalingFactor =
               if (c.hasPathOrNull("parkingStallCountScalingFactor")) c.getDouble("parkingStallCountScalingFactor")
               else 1.0
