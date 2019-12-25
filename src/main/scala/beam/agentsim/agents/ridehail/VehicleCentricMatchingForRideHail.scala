@@ -54,9 +54,9 @@ class VehicleCentricMatchingForRideHail(
     customers = MatchmakingUtils.getNearbyRequestsHeadingSameDirection(v, customers)
 
     // solution size resizing
-//    customers = customers
-//      .sortBy(r => GeoUtils.minkowskiDistFormula(center, r.pickup.activity.getCoord))
-//      .take(solutionSpaceSizePerVehicle)
+    customers = customers
+      .sortBy(r => GeoUtils.minkowskiDistFormula(center, r.pickup.activity.getCoord))
+      .take(solutionSpaceSizePerVehicle)
 
     val potentialTrips = mutable.ListBuffer.empty[AssignmentKey]
     // consider solo rides as initial potential trips
