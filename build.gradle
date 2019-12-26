@@ -438,15 +438,10 @@ def jfrWithMem = ["-XX:+UnlockCommercialFeatures", "-XX:+UnlockDiagnosticVMOptio
                   "-XX:StartFlightRecording=delay=2s,duration=60m,name=mem_ex,filename=recording.jfr,settings=profile_heap_exception",
                   "-XX:+FlightRecorder", "-XX:FlightRecorderOptions=disk=true,maxage=10h,dumponexit=true,loglevel=info"]
 
-
-def jmx = ["-Dcom.sun.management.jmxremote", "-Dcom.sun.management.jmxremote.port=9005", "-Dcom.sun.management.jmxremote.host=127.0.0.1",
-           "-Dcom.sun.management.jmxremote.local.only=true", "-Dcom.sun.management.jmxremote.authenticate=false", "-Dcom.sun.management.jmxremote.ssl=false",
-           "-Djava.net.preferIPv4Stack=true", "-Djava.rmi.server.hostname=127.0.0.1"]
-
 // UseParallelGC
 applicationDefaultJvmArgs = ["-Xmx${myAvailableRam}g", "-Xms${myAvailableRam/2}g",
                              "-XX:+UseParallelGC", "-XX:+UseParallelOldGC", "-XX:MetaspaceSize=150M", "-Djava.awt.headless=true",
-                             "-Dlogback.configurationFile=logback_prod.xml"] + logGC + jmx
+                             "-Dlogback.configurationFile=logback_prod.xml"] + logGC
 
 println(applicationDefaultJvmArgs)
 
@@ -537,6 +532,32 @@ And that would only happen if the committed code is not formatted as expected.""
     }
 }
 
+//docker{
+//
+//    registryCredentials {
+//        url = 'https://index.docker.io/v1/'
+//        username = System.getenv("DOCKER_USER")
+//        password = System.getenv("DOCKER_PASSWORD")
+//    }
+//
+//    javaApplication {
+//        baseImage = 'continuumio/miniconda3'
+//        maintainer = 'LBNL Beam Team'
+//        tag = "beammodel/beam:$version"
+//    }
+//}
+
+//dockerDistTar {
+//    instruction 'RUN apt-get update && apt-get -y install openjdk-8-jdk && rm -rf /var/lib/apt/lists/*'
+//    addFile 'test/', 'test/'
+//}
+//
+//dockerCopyDistResources {
+//    from('test/') {
+//        into('test/')
+//    }
+//}
+
 docker{
 
     registryCredentials {
@@ -556,11 +577,7 @@ docker{
 dockerDistTar {
     instruction 'RUN apt-get update && apt-get -y install python3 python3-pip python3-rtree libproj-dev proj-data proj-bin libgeos-dev npm'
     instruction 'RUN pip3 install --upgrade setuptools'
-    //instruction 'RUN apt-get -y install '
-    //instruction 'RUN apt-get -y install python-pip'
     instruction 'RUN pip3 install numpy pandas cython sklearn matplotlib mapclassify descartes geopandas contextily plotly collections-extended psutil requests'
-    //instruction 'RUN pip install pandas'
-    //instruction 'ENV PYTHONPATH=/usr/lib/python3.7/site-packages'
     addFile 'src/main/python/events_analysis/', 'src/main/python/events_analysis/'
     addFile 'test/', 'test/'
 }
