@@ -3,8 +3,7 @@ package beam.router.r5
 import java.time.temporal.ChronoUnit
 import java.time.{ZoneOffset, ZonedDateTime}
 import java.util
-import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.{ExecutorService, Executors, ThreadLocalRandom}
+import java.util.concurrent.{ExecutorService, Executors}
 import java.util.{Collections, Optional}
 
 import akka.actor._
@@ -137,7 +136,7 @@ class R5RoutingWorker(workerParams: WorkerParameters) extends Actor with ActorLo
 
   private var workAssigner: ActorRef = context.parent
 
-  private var r5: R5Wrapper = new R5Wrapper(workerParams, new FreeFlowTravelTime, isZeroIter = true)
+  private var r5: R5Wrapper = new R5Wrapper(workerParams, new FreeFlowTravelTime)
 
   private val linksBelowMinCarSpeed =
     workerParams.networkHelper.allLinks
@@ -209,15 +208,14 @@ class R5RoutingWorker(workerParams: WorkerParameters) extends Actor with ActorLo
       askForMoreWork()
 
     case UpdateTravelTimeLocal(newTravelTime) =>
-      r5 = new R5Wrapper(workerParams, newTravelTime, isZeroIter = false)
+      r5 = new R5Wrapper(workerParams, newTravelTime)
       log.info(s"{} UpdateTravelTimeLocal. Set new travel time", getNameAndHashCode)
       askForMoreWork()
 
     case UpdateTravelTimeRemote(map) =>
       r5 = new R5Wrapper(
         workerParams,
-        TravelTimeCalculatorHelper.CreateTravelTimeCalculator(workerParams.beamConfig.beam.agentsim.timeBinSize, map),
-        isZeroIter = false
+        TravelTimeCalculatorHelper.CreateTravelTimeCalculator(workerParams.beamConfig.beam.agentsim.timeBinSize, map)
       )
       log.info(
         s"{} UpdateTravelTimeRemote. Set new travel time from map with size {}",
@@ -241,7 +239,7 @@ class R5RoutingWorker(workerParams: WorkerParameters) extends Actor with ActorLo
     if (workAssigner != null) workAssigner ! GimmeWork //Master will retry if it hasn't heard
 }
 
-class R5Wrapper(workerParams: WorkerParameters, travelTime: TravelTime, isZeroIter: Boolean) extends MetricsSupport {
+class R5Wrapper(workerParams: WorkerParameters, travelTime: TravelTime) extends MetricsSupport {
 
   private val WorkerParameters(
     beamConfig,
@@ -1124,21 +1122,6 @@ class R5Wrapper(workerParams: WorkerParameters, travelTime: TravelTime, isZeroIt
       }
   }
 
-  private val zeroIterErrors: Array[Double] = Array.fill(1000000) {
-    ThreadLocalRandom.current().nextDouble(1 - 0.5, 1 + 0.5)
-  }
-
-  val travelTimeError: Double = workerParams.beamConfig.beam.routing.r5.travelTimeError
-
-  private val errors: Array[Double] = if (travelTimeError == 0.0) {
-    Array.empty
-  } else {
-    Array.fill(1000000) {
-      ThreadLocalRandom.current().nextDouble(1 - travelTimeError, 1 + travelTimeError)
-    }
-  }
-  private val errorIdx: AtomicInteger = new AtomicInteger(0)
-
   private def travelTimeByLinkCalculator(vehicleType: BeamVehicleType): (Double, Int, StreetMode) => Double = {
     val profileRequest = createProfileRequest
     (time: Double, linkId: Int, streetMode: StreetMode) =>
@@ -1153,12 +1136,8 @@ class R5Wrapper(workerParams: WorkerParameters, travelTime: TravelTime, isZeroIt
         } else {
           val link = networkHelper.getLinkUnsafe(linkId)
           assert(link != null)
-          val physSimTravelTime = travelTime.getLinkTravelTime(link, time, null, null)
-          val physSimTravelTimeWithError = (if (travelTimeError == 0.0) { physSimTravelTime } else {
-                                              val idx = Math.abs(errorIdx.getAndIncrement() % errors.length)
-                                              physSimTravelTime * errors(idx)
-                                            }).ceil.toInt
-          val linkTravelTime = Math.max(physSimTravelTimeWithError, minTravelTime)
+          val physSimTravelTime = travelTime.getLinkTravelTime(link, time, null, null).ceil.toInt
+          val linkTravelTime = Math.max(physSimTravelTime, minTravelTime)
           Math.min(linkTravelTime, maxTravelTime)
         }
       }

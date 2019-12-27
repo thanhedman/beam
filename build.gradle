@@ -40,7 +40,7 @@ apply plugin: 'scalafmt'
 apply plugin: 'com.bmuschko.docker-java-application'
 
 group = 'beam'
-version = '0.8.5'
+version = '0.8.0'
 
 description = """"""
 
@@ -542,14 +542,14 @@ docker{
     }
 
     javaApplication {
-        baseImage = 'beammodel/miniconda3'
+        baseImage = 'continuumio/miniconda3'
         maintainer = 'LBNL Beam Team'
         tag = "beammodel/beam:$version"
     }
 }
 
 dockerDistTar {
-    instruction 'RUN apt-get update'
+    instruction 'RUN apt-get update && apt-get -y install openjdk-8-jdk && rm -rf /var/lib/apt/lists/*'
     addFile 'test/', 'test/'
 }
 
