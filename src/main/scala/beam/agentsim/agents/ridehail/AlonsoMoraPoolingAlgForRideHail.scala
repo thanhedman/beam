@@ -187,15 +187,14 @@ class AlonsoMoraPoolingAlgForRideHail(
     Future {
       val rvG = pairwiseRVGraph
       val rTvG = rTVGraph(rvG)
-      val V: Int = supply.foldLeft(0) { case (maxCapacity, v) => Math max (maxCapacity, v.getFreeSeats) }
-      optimalAssignment(rTvG)
-      val assignment = greedyAssignment(rTvG, V)
+      //val V: Int = supply.foldLeft(0) { case (maxCapacity, v) => Math max (maxCapacity, v.getFreeSeats) }
+      val assignment = optimalAssignment(rTvG)
       assignment
     }
   }
 
-  def optimalAssignment(rTvG: RTVGraph): Unit = {
-    val satisfiedSets = mutable.HashSet.empty[CustomerRequest]
+  def optimalAssignment(rTvG: RTVGraph): List[(RideHailTrip, VehicleAndSchedule, Double)] = {
+    val optimalAssignment = mutable.ListBuffer.empty[(RideHailTrip, VehicleAndSchedule, Double)]
     val combinations = rTvG
       .vertexSet()
       .asScala
@@ -211,7 +210,6 @@ class AlonsoMoraPoolingAlgForRideHail(
               .head
           )
           .asInstanceOf[VehicleAndSchedule]
-        trip.requests.foreach(satisfiedSets.add)
         (trip, vehicle, trip.requests.sortBy(_.getId).map(_.getId).mkString(","))
       }
       .toList
@@ -219,14 +217,12 @@ class AlonsoMoraPoolingAlgForRideHail(
     if (combinations.nonEmpty) {
       val trips = combinations.map(_._3).distinct.toArray
       val requests = spatialDemand.values().asScala.toArray
-      val unsatisfiedRequests = requests.diff(satisfiedSets.toSeq)
       val vehicles = supply.toArray
       import scala.language.implicitConversions
       implicit val model = MPModel(SolverLib.oJSolver)
 
       val epsilonVars = mutable.Map.empty[Integer, mutable.Map[Integer, MPBinaryVar]]
       val chiVars = mutable.Map.empty[Integer, MPBinaryVar]
-
       val objFunction = ListBuffer.empty[Expression]
       val constraint1 = mutable.Map.empty[Integer, ListBuffer[Expression]]
       val constraint2 = mutable.Map.empty[Integer, ListBuffer[Expression]]
@@ -240,12 +236,6 @@ class AlonsoMoraPoolingAlgForRideHail(
           objFunction.append(c_ij * epsilonVar)
           constraint1.getOrElseUpdate(j, ListBuffer.empty[Expression]).append(epsilonVar)
       }
-//      unsatisfiedRequests.foreach { r =>
-//        val k = requests.indexOf(r)
-//        val chiVar = MPBinaryVar(s"chi($k)")
-//        chiVars.put(k, chiVar)
-//        objFunction.append(chiVar)
-//      }
       requests.zipWithIndex.foreach {
         case (r, k) =>
           combinations.filter(_._3.contains(r.getId)).foreach { t =>
@@ -263,28 +253,29 @@ class AlonsoMoraPoolingAlgForRideHail(
       minimize(sum(objFunction))
       constraint1.values.foreach(cons1 => add(sum(cons1) <:= 1))
       constraint2.values.foreach(cons2 => add(sum(cons2) := 1))
-
       start()
-
-      println("RESULT printing")
-      println("status " + status)
-      println("objectiveValue " + objectiveValue)
-      println("checkConstraints" + checkConstraints())
-
       for (i <- epsilonVars.keys) {
         for (j <- epsilonVars(i).keys) {
-          println(s"$i - $j => " + epsilonVars(i)(j).value)
+          epsilonVars(i)(j).value match {
+            case Some(epsilon) if epsilon == 1 =>
+              val vehicle = vehicles(j)
+              val trip = combinations.find(c => c._2 == vehicle && c._3 == trips(i)).get._1
+              optimalAssignment.append((trip,vehicle,0.0))
+            case _ =>
+          }
+          //println(s"$i - $j => " + epsilonVars(i)(j).value)
         }
       }
-
-      for (k <- chiVars.keys) {
-        println(s"$k => " + chiVars(k).value)
-      }
-
-      println("END")
+//      println("RESULT printing")
+//      println("status " + status)
+//      println("objectiveValue " + objectiveValue)
+//      println("checkConstraints " + checkConstraints())
+//      for (k <- chiVars.keys) {
+//        println(s"$k => " + chiVars(k).value)
+//      }
     }
+    optimalAssignment.toList
   }
-
 }
 
 object AlonsoMoraPoolingAlgForRideHail {
