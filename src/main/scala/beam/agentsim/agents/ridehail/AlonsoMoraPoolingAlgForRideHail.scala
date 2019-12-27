@@ -12,7 +12,7 @@ import optimus.optimization.MPModel
 import optimus.optimization.enums.SolverLib
 import optimus.optimization.model.MPBinaryVar
 import optimus.algebra.AlgebraOps._
-import optimus.optimization.enums.{ SolutionStatus, SolverLib }
+import optimus.optimization.enums.{SolutionStatus, SolverLib}
 import optimus.optimization.model.MPFloatVar
 import org.jgrapht.graph.{DefaultEdge, DefaultUndirectedWeightedGraph}
 import org.matsim.core.utils.collections.QuadTree
@@ -216,69 +216,69 @@ class AlonsoMoraPoolingAlgForRideHail(
       }
       .toList
 
-    val trips = combinations.map(_._3).distinct.toArray
-    val requests = spatialDemand.values().asScala.toArray
-    val unsatisfiedRequests = requests.diff(satisfiedSets.toSeq)
-    val vehicles = supply.toArray
-    import scala.language.implicitConversions
-    implicit val model = MPModel(SolverLib.oJSolver)
+    if (combinations.nonEmpty) {
+      val trips = combinations.map(_._3).distinct.toArray
+      val requests = spatialDemand.values().asScala.toArray
+      val unsatisfiedRequests = requests.diff(satisfiedSets.toSeq)
+      val vehicles = supply.toArray
+      import scala.language.implicitConversions
+      implicit val model = MPModel(SolverLib.oJSolver)
 
-    val epsilonVars = mutable.Map.empty[Integer, mutable.Map[Integer, MPBinaryVar]]
-    val chiVars = mutable.Map.empty[Integer, MPBinaryVar]
+      val epsilonVars = mutable.Map.empty[Integer, mutable.Map[Integer, MPBinaryVar]]
+      val chiVars = mutable.Map.empty[Integer, MPBinaryVar]
 
-    val objFunction = ListBuffer.empty[Expression]
-    val constraint1 = mutable.Map.empty[Integer, ListBuffer[Expression]]
-    val constraint2 = mutable.Map.empty[Integer, ListBuffer[Expression]]
-    combinations.foreach { case (trip, vehicle, _) =>
-        val c_ij = trip.sumOfDelays
-        val i = trips.indexOf(trip.requests.sortBy(_.getId).map(_.getId).mkString(","))
-        val j = vehicles.indexOf(vehicle)
-      val epsilonVar = MPBinaryVar(s"epsilon($i,$j)")
-      epsilonVars.getOrElseUpdate(i, mutable.Map.empty[Integer, MPBinaryVar]).put(j, epsilonVar)
-      objFunction.append(c_ij * epsilonVar)
-      constraint1.getOrElseUpdate(j, ListBuffer.empty[Expression]).append(epsilonVar)
-    }
-    unsatisfiedRequests.foreach {
-      r =>
+      val objFunction = ListBuffer.empty[Expression]
+      val constraint1 = mutable.Map.empty[Integer, ListBuffer[Expression]]
+      val constraint2 = mutable.Map.empty[Integer, ListBuffer[Expression]]
+      combinations.foreach {
+        case (trip, vehicle, _) =>
+          val c_ij = trip.sumOfDelays
+          val i = trips.indexOf(trip.requests.sortBy(_.getId).map(_.getId).mkString(","))
+          val j = vehicles.indexOf(vehicle)
+          val epsilonVar = MPBinaryVar(s"epsilon($i,$j)")
+          epsilonVars.getOrElseUpdate(i, mutable.Map.empty[Integer, MPBinaryVar]).put(j, epsilonVar)
+          objFunction.append(c_ij * epsilonVar)
+          constraint1.getOrElseUpdate(j, ListBuffer.empty[Expression]).append(epsilonVar)
+      }
+      unsatisfiedRequests.foreach { r =>
         val k = requests.indexOf(r)
         val chiVar = MPBinaryVar(s"chi($k)")
         chiVars.put(k, chiVar)
         objFunction.append(chiVar)
-    }
-    requests.zipWithIndex.foreach {
-      case (r, k) =>
-        combinations.filter(_._3.contains(r.getId)).foreach {
-          t =>
+      }
+      requests.zipWithIndex.foreach {
+        case (r, k) =>
+          combinations.filter(_._3.contains(r.getId)).foreach { t =>
             val i = trips.indexOf(t._1.requests.sortBy(_.getId).map(_.getId).mkString(","))
             val j = vehicles.indexOf(t._2)
             constraint2.getOrElseUpdate(k, ListBuffer.empty[Expression]).append(epsilonVars(i)(j))
-        }
-        constraint2.getOrElseUpdate(k, ListBuffer.empty[Expression]).append(chiVars(k))
-    }
-
-    minimize(sum(objFunction))
-    constraint1.values.foreach(cons1 => add(sum(cons1) <:= 1))
-    constraint2.values.foreach(cons2 => add(sum(cons2) := 1))
-
-    start()
-
-    print(status)
-    print(objectiveValue)
-    print(objectiveValue)
-    print(checkConstraints())
-
-    for( i <- epsilonVars.keys) {
-      for( j <- epsilonVars(i).keys) {
-        print(s"$i - $j => " + epsilonVars(i)(j))
+          }
+          constraint2.getOrElseUpdate(k, ListBuffer.empty[Expression]).append(chiVars(k))
       }
+
+      minimize(sum(objFunction))
+      constraint1.values.foreach(cons1 => add(sum(cons1) <:= 1))
+      constraint2.values.foreach(cons2 => add(sum(cons2) := 1))
+
+      start()
+
+      println("RESULT printing")
+      println("status " + status)
+      println("objectiveValue " + objectiveValue)
+      println("checkConstraints" + checkConstraints())
+
+      for (i <- epsilonVars.keys) {
+        for (j <- epsilonVars(i).keys) {
+          println(s"$i - $j => " + epsilonVars(i)(j).value)
+        }
+      }
+
+      for (k <- chiVars.keys) {
+        println(s"$k => " + chiVars(k).value)
+      }
+
+      println("END")
     }
-
-    for( k <- chiVars.keys) {
-      print(s"$k => " + chiVars(k))
-    }
-
-    print("END")
-
   }
 
 }
