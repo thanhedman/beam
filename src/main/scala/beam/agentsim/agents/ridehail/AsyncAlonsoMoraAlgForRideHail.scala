@@ -35,26 +35,36 @@ class AsyncAlonsoMoraAlgForRideHail(
     val searchRadius = waitingTimeInSec * BeamSkimmer.speedMeterPerSec(BeamMode.CAV)
 
     // get all customer requests located at a proximity to the vehicle
-    var customers = MatchmakingUtils.getRequestsWithinGeofence(v, spatialDemand.getDisk(center.getX, center.getY, searchRadius).asScala.toList)
+    var customers = MatchmakingUtils.getRequestsWithinGeofence(
+      v,
+      spatialDemand.getDisk(center.getX, center.getY, searchRadius).asScala.toList
+    )
 
     // heading same direction
     customers = MatchmakingUtils.getNearbyRequestsHeadingSameDirection(v, customers)
 
-    customers.foreach (
+    // solution size resizing
+    customers = customers
+      .sortBy(r => GeoUtils.minkowskiDistFormula(center, r.pickup.activity.getCoord))
+      .take(
+        beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.solutionSpaceSizePerVehicle
+      )
+
+    customers.foreach(
       r =>
-        MatchmakingUtils.getRidehailSchedule(
-          v.schedule,
-          List(r.pickup, r.dropoff),
-          v.vehicleRemainingRangeInMeters.toInt,
-          skimmer
-        ) match {
-          case Some(schedule) =>
+        MatchmakingUtils
+          .getRidehailSchedule(
+            v.schedule,
+            List(r.pickup, r.dropoff),
+            v.vehicleRemainingRangeInMeters.toInt,
+            skimmer
+          )
+          .foreach { schedule =>
             val t = RideHailTrip(List(r), schedule)
             finalRequestsList append t
             if (!vertices.contains(v)) vertices append v
             vertices append (r, t)
             edges append ((r, t), (t, v))
-          case _ =>
         }
     )
     if (finalRequestsList.nonEmpty) {
@@ -62,23 +72,24 @@ class AsyncAlonsoMoraAlgForRideHail(
         val kRequestsList = ListBuffer.empty[RideHailTrip]
         for (t1 <- finalRequestsList) {
           for (t2 <- finalRequestsList
-            .drop(finalRequestsList.indexOf(t1))
-            .filter(
-              x =>
-                !(x.requests exists (s => t1.requests contains s)) && (t1.requests.size + x.requests.size) == k
-            )) {
-            MatchmakingUtils.getRidehailSchedule(
-              v.schedule,
-              (t1.requests ++ t2.requests).flatMap(x => List(x.pickup, x.dropoff)),
-              v.vehicleRemainingRangeInMeters.toInt,
-              skimmer
-            ).map { schedule =>
-              val t = RideHailTrip(t1.requests ++ t2.requests, schedule)
-              kRequestsList append t
-              vertices append t
-              t.requests.foreach(r => edges.append((r, t)))
-              edges append ((t, v))
-            }
+                 .drop(finalRequestsList.indexOf(t1))
+                 .filter(
+                   x => !(x.requests exists (s => t1.requests contains s)) && (t1.requests.size + x.requests.size) == k
+                 )) {
+            MatchmakingUtils
+              .getRidehailSchedule(
+                v.schedule,
+                (t1.requests ++ t2.requests).flatMap(x => List(x.pickup, x.dropoff)),
+                v.vehicleRemainingRangeInMeters.toInt,
+                skimmer
+              )
+              .foreach { schedule =>
+                val t = RideHailTrip(t1.requests ++ t2.requests, schedule)
+                kRequestsList append t
+                vertices append t
+                t.requests.foreach(r => edges.append((r, t)))
+                edges append ((t, v))
+              }
           }
         }
         finalRequestsList.appendAll(kRequestsList)

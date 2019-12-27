@@ -48,7 +48,10 @@ class VehicleCentricMatchingForRideHail(
     val center = requestWithCurrentVehiclePosition.activity.getCoord
 
     // get all customer requests located at a proximity to the vehicle
-    var customers = MatchmakingUtils.getRequestsWithinGeofence(v, demand.getDisk(center.getX, center.getY, searchRadius).asScala.toList)
+    var customers = MatchmakingUtils.getRequestsWithinGeofence(
+      v,
+      demand.getDisk(center.getX, center.getY, searchRadius).asScala.toList
+    )
 
     // heading same direction
     customers = MatchmakingUtils.getNearbyRequestsHeadingSameDirection(v, customers)
@@ -63,7 +66,8 @@ class VehicleCentricMatchingForRideHail(
     customers
       .flatten(
         c =>
-          MatchmakingUtils.getRidehailSchedule(v.schedule, List(c.pickup, c.dropoff), v.vehicleRemainingRangeInMeters.toInt, skimmer)
+          MatchmakingUtils
+            .getRidehailSchedule(v.schedule, List(c.pickup, c.dropoff), v.vehicleRemainingRangeInMeters.toInt, skimmer)
             .map(schedule => (c, schedule))
       )
       .foreach {
@@ -100,16 +104,7 @@ class VehicleCentricMatchingForRideHail(
                   case Some(schedule) =>
                     val t = RideHailTrip(requests, schedule)
                     val cost = MatchmakingUtils.computeGreedyCost(t, v)
-                    if (tripsWithKPassengers.size == Integer.MAX_VALUE) {
-                      // then replace the trip with highest sum of delays
-                      val ((_, _, tripWithHighestCost), index) = tripsWithKPassengers.zipWithIndex.maxBy(_._1._3)
-                      if (tripWithHighestCost > cost) {
-                        tripsWithKPassengers.remove(index)
-                      }
-                    }
-                    if(tripsWithKPassengers.size < Integer.MAX_VALUE) {
-                      tripsWithKPassengers.append((t, v, cost))
-                    }
+                    tripsWithKPassengers.append((t, v, cost))
                   case _ =>
                 }
             }
