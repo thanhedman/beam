@@ -5,6 +5,7 @@ import beam.agentsim.agents.vehicles.{BeamVehicle, PersonIdWithActorRef}
 import beam.agentsim.agents.{MobilityRequest, _}
 import beam.router.BeamSkimmer
 import beam.router.Modes.BeamMode
+import beam.sim.common.GeoUtils
 import beam.sim.{BeamServices, Geofence}
 import optimus.optimization.MPModel
 import optimus.optimization.enums.SolverLib

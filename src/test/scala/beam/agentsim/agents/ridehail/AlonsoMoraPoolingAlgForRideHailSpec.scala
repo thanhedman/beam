@@ -241,7 +241,8 @@ object AlonsoMoraPoolingAlgForRideHailSpec {
         vehicleType,
         new Coord(5000, 5000),
         8.hours.toSeconds.toInt,
-        Some(Geofence(10000, 10000, 13400))
+        Some(Geofence(10000, 10000, 13400)),
+        4
       )
     val v2: VehicleAndSchedule =
       MatchmakingUtils.createVehicleAndSchedule(
@@ -249,7 +250,8 @@ object AlonsoMoraPoolingAlgForRideHailSpec {
         vehicleType,
         new Coord(2000, 2000),
         8.hours.toSeconds.toInt,
-        Some(Geofence(10000, 10000, 13400))
+        Some(Geofence(10000, 10000, 13400)),
+        4
       )
     val p1Req: CustomerRequest =
       MatchmakingUtils.createPersonRequest(
