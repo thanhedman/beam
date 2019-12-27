@@ -17,7 +17,6 @@ import org.matsim.core.utils.collections.QuadTree
 import org.matsim.vehicles.Vehicle
 
 import scala.collection.JavaConverters._
-import scala.collection.immutable.List
 import scala.collection.mutable
 import scala.concurrent.{Await, TimeoutException}
 
@@ -181,13 +180,13 @@ class PoolingAlonsoMora(val rideHailManager: RideHailManager)
         rideHailManager.log
           .debug("%%%%% Requests: {}", spatialPoolCustomerReqs.values().asScala.map(_.toString).mkString("\n"))
       }
-      val alg =
-        new VehicleCentricMatchingForRideHail(
-          spatialPoolCustomerReqs,
-          availVehicles,
-          rideHailManager.beamServices,
-          skimmer
-        )
+//      val alg =
+//        new VehicleCentricMatchingForRideHail(
+//          spatialPoolCustomerReqs,
+//          availVehicles,
+//          rideHailManager.beamServices,
+//          skimmer
+//        )
 //      val alg =
 //        new AsyncAlonsoMoraAlgForRideHail(
 //          spatialPoolCustomerReqs,
@@ -195,13 +194,13 @@ class PoolingAlonsoMora(val rideHailManager: RideHailManager)
 //          rideHailManager.beamServices,
 //          skimmer
 //        )
-//      val alg =
-//        new AlonsoMoraPoolingAlgForRideHail(
-//          spatialPoolCustomerReqs,
-//          availVehicles,
-//          rideHailManager.beamServices,
-//          skimmer
-//        )
+      val alg =
+        new AlonsoMoraPoolingAlgForRideHail(
+          spatialPoolCustomerReqs,
+          availVehicles,
+          rideHailManager.beamServices,
+          skimmer
+        )
 
       import scala.concurrent.duration._
       val assignment = try {

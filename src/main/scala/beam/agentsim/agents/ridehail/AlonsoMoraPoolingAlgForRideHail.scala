@@ -7,15 +7,27 @@ import beam.router.BeamSkimmer
 import beam.router.Modes.BeamMode
 import beam.sim.common.GeoUtils
 import beam.sim.{BeamServices, Geofence}
+import optimus.algebra.Expression
 import optimus.optimization.MPModel
 import optimus.optimization.enums.SolverLib
 import optimus.optimization.model.MPBinaryVar
+import optimus.algebra.AlgebraOps._
+import optimus.optimization.enums.{ SolutionStatus, SolverLib }
+import optimus.optimization.model.MPFloatVar
 import org.jgrapht.graph.{DefaultEdge, DefaultUndirectedWeightedGraph}
 import org.matsim.core.utils.collections.QuadTree
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.List
 import scala.collection.mutable.ListBuffer
+import beam.sim.config.BeamConfig.Beam.Agentsim.Agents.RideHail.AllocationManager
+import optimus.optimization.MPModel
+import optimus.optimization.enums.SolverLib
+import optimus.optimization.model.{INFINITE, MPBinaryVar, MPFloatVar}
+import optimus.algebra._
+import optimus.optimization._
+
+import scala.collection.mutable
 import scala.concurrent.Future
 
 class AlonsoMoraPoolingAlgForRideHail(
@@ -176,67 +188,98 @@ class AlonsoMoraPoolingAlgForRideHail(
       val rvG = pairwiseRVGraph
       val rTvG = rTVGraph(rvG)
       val V: Int = supply.foldLeft(0) { case (maxCapacity, v) => Math max (maxCapacity, v.getFreeSeats) }
+      optimalAssignment(rTvG)
       val assignment = greedyAssignment(rTvG, V)
       assignment
     }
   }
-//
-//def optimalAssignment(rTvG: RTVGraph): Unit = {
-//  val satisfiedSets = mutable.HashSet.empty[CustomerRequest]
-//  val combinations = rTvG
-//    .vertexSet()
-//    .asScala
-//    .filter(t => t.isInstanceOf[RideHailTrip])
-//    .map { t =>
-//      val trip = t.asInstanceOf[RideHailTrip]
-//      val vehicle = rTvG
-//        .getEdgeTarget(
-//          rTvG
-//            .outgoingEdgesOf(trip)
-//            .asScala
-//            .filter(e => rTvG.getEdgeTarget(e).isInstanceOf[VehicleAndSchedule])
-//            .head
-//        )
-//        .asInstanceOf[VehicleAndSchedule]
-//      trip.requests.foreach(satisfiedSets.add)
-//      (trip, vehicle, trip.requests.sortBy(_.getId).map(_.getId).mkString(","))
-//    }
-//    .toList
-//  val trips = combinations.map(_._3).distinct.toArray
-//
-//
-//  val requests = spatialDemand.values().asScala.toArray
-//  val unsatisfiedRequests = ListBuffer(requests)
-//  val vehicles = supply.toArray
-//
-//  import scala.language.implicitConversions
-//  implicit val model = MPModel(SolverLib.oJSolver)
-//
-//  val delays = ListBuffer.empty[Expression]
-//  combinations.foreach {
-//    case (trip, vehicle, cost, tripId) =>
-//      val c_ij = trip.sumOfDelays
-//      val i = trips.indexOf(trip.requests.sortBy(_.getId).map(_.getId).mkString(","))
-//      val j = vehicles.indexOf(vehicle)
-//      delays.append(c_ij * MPBinaryVar(s"x($i,$j)"))
-//  }
-//
-//  val Epsilon_ij = ListBuffer.empty[Array[Boolean]]
-//  vehicles.foreach(v => Epsilon_ij.append(trips.map(t => combinations.exists(c => c._4 == t && c._2 == v))))
-//
-//  val Chi_k = ListBuffer.empty[Boolean]
-//  requests.foreach(r => Chi_k.append(!trips.exists(t => t contains r.getId)))
-//
-//
-//  val epsilon = MPBinaryVar("epsilon")
-//  val chi = MPBinaryVar("chi")
-//  val i = tripsIdx.map(t => MPBinaryVar(s"x$t"))
-//  val j = vehicles.map(v => MPBinaryVar(s"x$v"))
-//  val k = requests.map(r => MPBinaryVar(s"x$r"))
-//
-//  minimize(sum())
-//
-//  }
+
+  def optimalAssignment(rTvG: RTVGraph): Unit = {
+    val satisfiedSets = mutable.HashSet.empty[CustomerRequest]
+    val combinations = rTvG
+      .vertexSet()
+      .asScala
+      .filter(t => t.isInstanceOf[RideHailTrip])
+      .map { t =>
+        val trip = t.asInstanceOf[RideHailTrip]
+        val vehicle = rTvG
+          .getEdgeTarget(
+            rTvG
+              .outgoingEdgesOf(trip)
+              .asScala
+              .filter(e => rTvG.getEdgeTarget(e).isInstanceOf[VehicleAndSchedule])
+              .head
+          )
+          .asInstanceOf[VehicleAndSchedule]
+        trip.requests.foreach(satisfiedSets.add)
+        (trip, vehicle, trip.requests.sortBy(_.getId).map(_.getId).mkString(","))
+      }
+      .toList
+
+    val trips = combinations.map(_._3).distinct.toArray
+    val requests = spatialDemand.values().asScala.toArray
+    val unsatisfiedRequests = requests.diff(satisfiedSets.toSeq)
+    val vehicles = supply.toArray
+    import scala.language.implicitConversions
+    implicit val model = MPModel(SolverLib.oJSolver)
+
+    val epsilonVars = mutable.Map.empty[Integer, mutable.Map[Integer, MPBinaryVar]]
+    val chiVars = mutable.Map.empty[Integer, MPBinaryVar]
+
+    val objFunction = ListBuffer.empty[Expression]
+    val constraint1 = mutable.Map.empty[Integer, ListBuffer[Expression]]
+    val constraint2 = mutable.Map.empty[Integer, ListBuffer[Expression]]
+    combinations.foreach { case (trip, vehicle, _) =>
+        val c_ij = trip.sumOfDelays
+        val i = trips.indexOf(trip.requests.sortBy(_.getId).map(_.getId).mkString(","))
+        val j = vehicles.indexOf(vehicle)
+      val epsilonVar = MPBinaryVar(s"epsilon($i,$j)")
+      epsilonVars.getOrElseUpdate(i, mutable.Map.empty[Integer, MPBinaryVar]).put(j, epsilonVar)
+      objFunction.append(c_ij * epsilonVar)
+      constraint1.getOrElseUpdate(j, ListBuffer.empty[Expression]).append(epsilonVar)
+    }
+    unsatisfiedRequests.foreach {
+      r =>
+        val k = requests.indexOf(r)
+        val chiVar = MPBinaryVar(s"chi($k)")
+        chiVars.put(k, chiVar)
+        objFunction.append(chiVar)
+    }
+    requests.zipWithIndex.foreach {
+      case (r, k) =>
+        combinations.filter(_._3.contains(r.getId)).foreach {
+          t =>
+            val i = trips.indexOf(t._1.requests.sortBy(_.getId).map(_.getId).mkString(","))
+            val j = vehicles.indexOf(t._2)
+            constraint2.getOrElseUpdate(k, ListBuffer.empty[Expression]).append(epsilonVars(i)(j))
+        }
+        constraint2.getOrElseUpdate(k, ListBuffer.empty[Expression]).append(chiVars(k))
+    }
+
+    minimize(sum(objFunction))
+    constraint1.values.foreach(cons1 => add(sum(cons1) <:= 1))
+    constraint2.values.foreach(cons2 => add(sum(cons2) := 1))
+
+    start()
+
+    print(status)
+    print(objectiveValue)
+    print(objectiveValue)
+    print(checkConstraints())
+
+    for( i <- epsilonVars.keys) {
+      for( j <- epsilonVars(i).keys) {
+        print(s"$i - $j => " + epsilonVars(i)(j))
+      }
+    }
+
+    for( k <- chiVars.keys) {
+      print(s"$k => " + chiVars(k))
+    }
+
+    print("END")
+
+  }
 
 }
 
