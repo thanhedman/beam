@@ -240,12 +240,12 @@ class AlonsoMoraPoolingAlgForRideHail(
           objFunction.append(c_ij * epsilonVar)
           constraint1.getOrElseUpdate(j, ListBuffer.empty[Expression]).append(epsilonVar)
       }
-      unsatisfiedRequests.foreach { r =>
-        val k = requests.indexOf(r)
-        val chiVar = MPBinaryVar(s"chi($k)")
-        chiVars.put(k, chiVar)
-        objFunction.append(chiVar)
-      }
+//      unsatisfiedRequests.foreach { r =>
+//        val k = requests.indexOf(r)
+//        val chiVar = MPBinaryVar(s"chi($k)")
+//        chiVars.put(k, chiVar)
+//        objFunction.append(chiVar)
+//      }
       requests.zipWithIndex.foreach {
         case (r, k) =>
           combinations.filter(_._3.contains(r.getId)).foreach { t =>
@@ -253,7 +253,11 @@ class AlonsoMoraPoolingAlgForRideHail(
             val j = vehicles.indexOf(t._2)
             constraint2.getOrElseUpdate(k, ListBuffer.empty[Expression]).append(epsilonVars(i)(j))
           }
-          constraint2.getOrElseUpdate(k, ListBuffer.empty[Expression]).append(chiVars(k))
+          val c_k0 = r.dropoff.upperBoundTime - r.dropoff.baselineNonPooledTime
+          val chiVar = MPBinaryVar(s"chi($k)")
+          chiVars.put(k, chiVar)
+          objFunction.append(c_k0 * chiVar)
+          constraint2.getOrElseUpdate(k, ListBuffer.empty[Expression]).append(chiVar)
       }
 
       minimize(sum(objFunction))
