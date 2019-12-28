@@ -260,7 +260,7 @@ class AlonsoMoraPoolingAlgForRideHail(
             case Some(epsilon) if epsilon == 1 =>
               val vehicle = vehicles(j)
               val trip = combinations.find(c => c._2 == vehicle && c._3 == trips(i)).get._1
-              optimalAssignment.append((trip,vehicle,0.0))
+              optimalAssignment.append((trip, vehicle, 0.0))
             case _ =>
           }
           //println(s"$i - $j => " + epsilonVars(i)(j).value)
