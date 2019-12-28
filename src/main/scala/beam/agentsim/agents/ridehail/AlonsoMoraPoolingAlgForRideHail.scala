@@ -228,7 +228,9 @@ class AlonsoMoraPoolingAlgForRideHail(
       val constraint2 = mutable.Map.empty[Integer, ListBuffer[Expression]]
       combinations.foreach {
         case (trip, vehicle, _) =>
-          val c_ij = trip.sumOfDelays/trip.upperBoundDelays
+          //val c_ij = trip.sumOfDelays/trip.upperBoundDelays
+          //val c_ij = trip.sumOfDelays/trip.upperBoundDelays
+          val c_ij = MatchmakingUtils.computeGreedyCost(trip, vehicle)
           val i = trips.indexOf(trip.requests.sortBy(_.getId).map(_.getId).mkString(","))
           val j = vehicles.indexOf(vehicle)
           val epsilonVar = MPBinaryVar(s"epsilon($i,$j)")
@@ -245,6 +247,7 @@ class AlonsoMoraPoolingAlgForRideHail(
           }
           //val c_k0 = r.dropoff.upperBoundTime - r.dropoff.baselineNonPooledTime
           //val c_k0 = 24*3600
+          //val c_k0 = 1.0
           val c_k0 = 1.0
           val chiVar = MPBinaryVar(s"chi($k)")
           chiVars.put(k, chiVar)

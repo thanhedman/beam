@@ -40,6 +40,7 @@ object MatchmakingUtils {
     -1 * cost
   }
 
+
   def checkAngle(origin: Coord, dest1: Coord, dest2: Coord)(implicit services: BeamServices): Boolean = {
     val crs = DefaultGeographicCRS.WGS84
     //val crs = MGC.getCRS(services.beamConfig.beam.spatial.localCRS)
