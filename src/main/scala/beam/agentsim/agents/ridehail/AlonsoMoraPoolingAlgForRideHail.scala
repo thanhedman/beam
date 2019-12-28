@@ -38,8 +38,8 @@ class AlonsoMoraPoolingAlgForRideHail(
 ) {
 
   // Methods below should be kept as def (instead of val) to allow automatic value updating
-  //private def solutionSpaceSizePerVehicle: Int = Integer.MAX_VALUE
-  private def waitingTimeInSec: Int =
+  private val solutionSpaceSizePerVehicle: Int = beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.solutionSpaceSizePerVehicle
+  private val waitingTimeInSec: Int =
     beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.waitingTimeInSec
   private implicit val implicitServices = beamServices
 
@@ -78,14 +78,10 @@ class AlonsoMoraPoolingAlgForRideHail(
         spatialDemand.getDisk(center.getX, center.getY, searchRadius).asScala.toList
       )
       // heading same direction
-      customers = MatchmakingUtils.getNearbyRequestsHeadingSameDirection(v, customers)
+      customers = MatchmakingUtils.getNearbyRequestsHeadingSameDirection(v, customers, solutionSpaceSizePerVehicle)
 
       // solution size resizing
-      customers = customers
-        .sortBy(r => GeoUtils.minkowskiDistFormula(center, r.pickup.activity.getCoord))
-        .take(
-          beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.solutionSpaceSizePerVehicle
-        )
+      customers = customers.take(solutionSpaceSizePerVehicle)
 
       customers
         .foreach(
@@ -228,9 +224,7 @@ class AlonsoMoraPoolingAlgForRideHail(
       val constraint2 = mutable.Map.empty[Integer, ListBuffer[Expression]]
       combinations.foreach {
         case (trip, vehicle, _) =>
-          //val c_ij = trip.sumOfDelays/trip.upperBoundDelays
-          //val c_ij = trip.sumOfDelays/trip.upperBoundDelays
-          val c_ij = MatchmakingUtils.computeGreedyCost(trip, vehicle)
+          val c_ij = trip.sumOfDelays
           val i = trips.indexOf(trip.requests.sortBy(_.getId).map(_.getId).mkString(","))
           val j = vehicles.indexOf(vehicle)
           val epsilonVar = MPBinaryVar(s"epsilon($i,$j)")
@@ -245,10 +239,7 @@ class AlonsoMoraPoolingAlgForRideHail(
             val j = vehicles.indexOf(t._2)
             constraint2.getOrElseUpdate(k, ListBuffer.empty[Expression]).append(epsilonVars(i)(j))
           }
-          //val c_k0 = r.dropoff.upperBoundTime - r.dropoff.baselineNonPooledTime
-          //val c_k0 = 24*3600
-          //val c_k0 = 1.0
-          val c_k0 = 1.0
+          val c_k0 = 24*3600
           val chiVar = MPBinaryVar(s"chi($k)")
           chiVars.put(k, chiVar)
           objFunction.append(c_k0 * chiVar)

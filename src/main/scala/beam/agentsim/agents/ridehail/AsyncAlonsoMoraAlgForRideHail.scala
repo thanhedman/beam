@@ -21,7 +21,7 @@ class AsyncAlonsoMoraAlgForRideHail(
   skimmer: BeamSkimmer
 ) {
 
-  //private val solutionSpaceSizePerVehicle = Integer.MAX_VALUE
+  private val solutionSpaceSizePerVehicle: Int = beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.solutionSpaceSizePerVehicle
   private val waitingTimeInSec =
     beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.waitingTimeInSec
 
@@ -42,14 +42,10 @@ class AsyncAlonsoMoraAlgForRideHail(
     )
 
     // heading same direction
-    customers = MatchmakingUtils.getNearbyRequestsHeadingSameDirection(v, customers)
+    customers = MatchmakingUtils.getNearbyRequestsHeadingSameDirection(v, customers, solutionSpaceSizePerVehicle)
 
     // solution size resizing
-    customers = customers
-      .sortBy(r => GeoUtils.minkowskiDistFormula(center, r.pickup.activity.getCoord))
-      .take(
-        beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.solutionSpaceSizePerVehicle
-      )
+    customers = customers.take(solutionSpaceSizePerVehicle)
 
     customers.foreach(
       r =>

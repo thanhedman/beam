@@ -22,6 +22,7 @@ import scala.util.control.Breaks._
 
 import scala.collection.immutable.List
 import scala.collection.mutable.ListBuffer
+import scala.collection.mutable
 
 object MatchmakingUtils {
 
@@ -80,7 +81,7 @@ object MatchmakingUtils {
     }
   }
 
-  def getNearbyRequestsHeadingSameDirection(v: VehicleAndSchedule, demand: List[CustomerRequest])(
+  def getNearbyRequestsHeadingSameDirection(v: VehicleAndSchedule, demand: List[CustomerRequest], searchSpace: Int)(
     implicit services: BeamServices
   ): List[CustomerRequest] = {
     val requestWithCurrentVehiclePosition = v.getRequestWithCurrentVehiclePosition
@@ -94,26 +95,18 @@ object MatchmakingUtils {
         r =>
           mainTasks
             .filter(_.pickupRequest.isDefined)
-            .exists(
-              m =>
-                MatchmakingUtils
-                  .checkAngle(m.pickupRequest.get.activity.getCoord, m.activity.getCoord, r.dropoff.activity.getCoord)
+            .exists(m => MatchmakingUtils.checkAngle(center, m.activity.getCoord, r.dropoff.activity.getCoord)
           )
       )
     } else {
       // if vehicle is empty, prioritize the destination of the current closest customers
       val customers = demand.sortBy(r => GeoUtils.minkowskiDistFormula(center, r.pickup.activity.getCoord))
-      val mainRequests = customers.slice(0, Math.min(customers.size, v.getSeatingCapacity))
-      mainRequests ::: customers
-        .drop(mainRequests.size)
-        .filter(
-          r =>
-            mainRequests.exists(
-              m =>
-                MatchmakingUtils
-                  .checkAngle(m.pickup.activity.getCoord, m.dropoff.activity.getCoord, r.dropoff.activity.getCoord)
-          )
+      val mainRequests = customers.slice(0, Math.min(customers.size, searchSpace))
+      mainRequests.map(r1 =>
+        r1 +: customers.filter(r2 =>
+          r1 != r2 && MatchmakingUtils.checkAngle(center, r1.dropoff.activity.getCoord, r2.dropoff.activity.getCoord)
         )
+      ).sortBy(-_.size).flatten.distinct
     }
   }
 
