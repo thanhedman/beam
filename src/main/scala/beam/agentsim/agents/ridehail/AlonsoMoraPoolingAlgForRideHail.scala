@@ -243,7 +243,8 @@ class AlonsoMoraPoolingAlgForRideHail(
             val j = vehicles.indexOf(t._2)
             constraint2.getOrElseUpdate(k, ListBuffer.empty[Expression]).append(epsilonVars(i)(j))
           }
-          val c_k0 = r.dropoff.upperBoundTime - r.dropoff.baselineNonPooledTime
+          //val c_k0 = r.dropoff.upperBoundTime - r.dropoff.baselineNonPooledTime
+          val c_k0 = 24*3600
           val chiVar = MPBinaryVar(s"chi($k)")
           chiVars.put(k, chiVar)
           objFunction.append(c_k0 * chiVar)
