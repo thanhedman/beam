@@ -183,8 +183,9 @@ class AlonsoMoraPoolingAlgForRideHail(
     Future {
       val rvG = pairwiseRVGraph
       val rTvG = rTVGraph(rvG)
-      //val V: Int = supply.foldLeft(0) { case (maxCapacity, v) => Math max (maxCapacity, v.getFreeSeats) }
+      val V: Int = supply.foldLeft(0) { case (maxCapacity, v) => Math max (maxCapacity, v.getFreeSeats) }
       val assignment = optimalAssignment(rTvG)
+      //val assignment = greedyAssignment(rTvG, V)
       assignment
     }
   }
@@ -207,8 +208,19 @@ class AlonsoMoraPoolingAlgForRideHail(
           )
           .asInstanceOf[VehicleAndSchedule]
         (trip, vehicle, trip.requests.sortBy(_.getId).map(_.getId).mkString(","))
-      }
-      .toList
+      }.toList
+
+//    val filteredCombination = ListBuffer.empty[(RideHailTrip, VehicleAndSchedule, String)]
+//    combinations.groupBy(_._3).foreach {
+//      case (_, comb) =>
+//        filteredCombination.appendAll(comb.toList.sortBy(_._1.sumOfDelays).take(5))
+//    }
+//
+//    val filteredCombination2 = ListBuffer.empty[(RideHailTrip, VehicleAndSchedule, String)]
+//    filteredCombination.groupBy(r => (r._2, r._1.requests.size)).foreach {
+//      case (_, comb) =>
+//        filteredCombination2.appendAll(comb.toList.sortBy(_._1.sumOfDelays).take(5))
+//    }
 
     if (combinations.nonEmpty) {
       val trips = combinations.map(_._3).distinct.toArray
@@ -252,14 +264,15 @@ class AlonsoMoraPoolingAlgForRideHail(
       start()
       for (i <- epsilonVars.keys) {
         for (j <- epsilonVars(i).keys) {
+          val vehicle = vehicles(j)
+          val trip = combinations.find(c => c._2 == vehicle && c._3 == trips(i)).get._1
           epsilonVars(i)(j).value match {
             case Some(epsilon) if epsilon == 1 =>
-              val vehicle = vehicles(j)
-              val trip = combinations.find(c => c._2 == vehicle && c._3 == trips(i)).get._1
-              optimalAssignment.append((trip, vehicle, 0.0))
+              optimalAssignment.append((trip, vehicle, trip.sumOfDelays))
+              //println(s"OK => vehicle: ${vehicle.getId} | trips: ${trips(i)} | sumOfDelays: ${trip.sumOfDelays}")
             case _ =>
+              //println(s"KO => vehicle: ${vehicle.getId} | trips: ${trips(i)} | sumOfDelays: ${trip.sumOfDelays}")
           }
-          //println(s"$i - $j => " + epsilonVars(i)(j).value)
         }
       }
 //      println("RESULT printing")
