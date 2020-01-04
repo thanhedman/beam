@@ -184,8 +184,8 @@ class AlonsoMoraPoolingAlgForRideHail(
       val rvG = pairwiseRVGraph
       val rTvG = rTVGraph(rvG)
       val V: Int = supply.foldLeft(0) { case (maxCapacity, v) => Math max (maxCapacity, v.getFreeSeats) }
-      //val assignment = optimalAssignment(rTvG)
-      val assignment = greedyAssignment(rTvG, V)
+      val assignment = optimalAssignment(rTvG)
+      //val assignment = greedyAssignment(rTvG, V)
       assignment
     }
   }
