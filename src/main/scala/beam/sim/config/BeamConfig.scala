@@ -1435,6 +1435,7 @@ object BeamConfig {
       }
 
       case class Taz(
+        defaultChargerCostPerHourInDollars: scala.Double,
         filePath: java.lang.String,
         parkingCostScalingFactor: scala.Double,
         parkingFilePath: java.lang.String,
@@ -1447,6 +1448,10 @@ object BeamConfig {
 
         def apply(c: com.typesafe.config.Config): BeamConfig.Beam.Agentsim.Taz = {
           BeamConfig.Beam.Agentsim.Taz(
+            defaultChargerCostPerHourInDollars =
+              if (c.hasPathOrNull("defaultChargerCostPerHourInDollars"))
+                c.getDouble("defaultChargerCostPerHourInDollars")
+              else 30.0,
             filePath =
               if (c.hasPathOrNull("filePath")) c.getString("filePath") else "/test/input/beamville/taz-centers.csv",
             parkingCostScalingFactor =
