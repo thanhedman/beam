@@ -5,43 +5,40 @@ import beam.agentsim.agents.vehicles.{BeamVehicle, PersonIdWithActorRef}
 import beam.agentsim.agents.{MobilityRequest, _}
 import beam.router.BeamSkimmer
 import beam.router.Modes.BeamMode
-import beam.sim.common.GeoUtils
 import beam.sim.{BeamServices, Geofence}
-import optimus.algebra.Expression
-import optimus.optimization.MPModel
-import optimus.optimization.enums.SolverLib
-import optimus.optimization.model.MPBinaryVar
-import optimus.algebra.AlgebraOps._
-import optimus.optimization.enums.{SolutionStatus, SolverLib}
-import optimus.optimization.model.MPFloatVar
+import com.typesafe.scalalogging.LazyLogging
+//import optimus.algebra.AlgebraOps._
+//import optimus.algebra.{Expression, _}
+//import optimus.optimization.{MPModel, _}
+//import optimus.optimization.enums.SolverLib
+//import optimus.optimization.model.MPBinaryVar
 import org.jgrapht.graph.{DefaultEdge, DefaultUndirectedWeightedGraph}
 import org.matsim.core.utils.collections.QuadTree
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.List
-import scala.collection.mutable.ListBuffer
-import beam.sim.config.BeamConfig.Beam.Agentsim.Agents.RideHail.AllocationManager
-import optimus.optimization.MPModel
-import optimus.optimization.enums.SolverLib
-import optimus.optimization.model.{INFINITE, MPBinaryVar, MPFloatVar}
-import optimus.algebra._
-import optimus.optimization._
-
 import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.Future
 
+import com.google.ortools.linearsolver.MPConstraint
+import com.google.ortools.linearsolver.MPVariable
+import com.google.ortools.linearsolver.MPSolver
+
 class AlonsoMoraPoolingAlgForRideHail(
-  spatialDemand: QuadTree[CustomerRequest],
-  supply: List[VehicleAndSchedule],
-  beamServices: BeamServices,
-  skimmer: BeamSkimmer
-) {
+                                       spatialDemand: QuadTree[CustomerRequest],
+                                       supply: List[VehicleAndSchedule],
+                                       beamServices: BeamServices,
+                                       skimmer: BeamSkimmer
+                                     ) extends LazyLogging {
 
   // Methods below should be kept as def (instead of val) to allow automatic value updating
-  private val solutionSpaceSizePerVehicle: Int = beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.solutionSpaceSizePerVehicle
+  private val solutionSpaceSizePerVehicle: Int =
+    beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.solutionSpaceSizePerVehicle
   private val waitingTimeInSec: Int =
     beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.waitingTimeInSec
   private implicit val implicitServices = beamServices
+
 
   // Request Vehicle Graph
   def pairwiseRVGraph: RVGraph = {
@@ -97,7 +94,7 @@ class AlonsoMoraPoolingAlgForRideHail(
                 rvG.addVertex(v)
                 rvG.addVertex(r)
                 rvG.addEdge(v, r, RideHailTrip(List(r), schedule))
-            }
+              }
         )
     }
     rvG
@@ -124,8 +121,8 @@ class AlonsoMoraPoolingAlgForRideHail(
         val pairRequestsList = ListBuffer.empty[RideHailTrip]
         for (t1 <- individualRequestsList) {
           for (t2 <- individualRequestsList
-                 .drop(individualRequestsList.indexOf(t1))
-                 .filter(x => rvG.containsEdge(t1.requests.head, x.requests.head))) {
+            .drop(individualRequestsList.indexOf(t1))
+            .filter(x => rvG.containsEdge(t1.requests.head, x.requests.head))) {
             MatchmakingUtils
               .getRidehailSchedule(
                 v.schedule,
@@ -149,11 +146,11 @@ class AlonsoMoraPoolingAlgForRideHail(
           val kRequestsList = ListBuffer.empty[RideHailTrip]
           for (t1 <- finalRequestsList) {
             for (t2 <- finalRequestsList
-                   .drop(finalRequestsList.indexOf(t1))
-                   .filter(
-                     x =>
-                       !(x.requests exists (s => t1.requests contains s)) && (t1.requests.size + x.requests.size) == k
-                   )) {
+              .drop(finalRequestsList.indexOf(t1))
+              .filter(
+                x =>
+                  !(x.requests exists (s => t1.requests contains s)) && (t1.requests.size + x.requests.size) == k
+              )) {
               MatchmakingUtils
                 .getRidehailSchedule(
                   v.schedule,
@@ -184,13 +181,91 @@ class AlonsoMoraPoolingAlgForRideHail(
       val rvG = pairwiseRVGraph
       val rTvG = rTVGraph(rvG)
       val V: Int = supply.foldLeft(0) { case (maxCapacity, v) => Math max (maxCapacity, v.getFreeSeats) }
-      //val assignment = optimalAssignment(rTvG)
-      val assignment = greedyAssignment(rTvG, V)
+      val assignment = optimalAssignment2(rTvG)
+      //val assignment = greedyAssignment(rTvG, V)
       assignment
     }
   }
 
-  def optimalAssignment(rTvG: RTVGraph): List[(RideHailTrip, VehicleAndSchedule, Double)] = {
+  //  def optimalAssignment1(rTvG: RTVGraph): List[(RideHailTrip, VehicleAndSchedule, Double)] = {
+  //    val optimalAssignment = mutable.ListBuffer.empty[(RideHailTrip, VehicleAndSchedule, Double)]
+  //    val combinations = rTvG
+  //      .vertexSet()
+  //      .asScala
+  //      .filter(t => t.isInstanceOf[RideHailTrip])
+  //      .map { t =>
+  //        val trip = t.asInstanceOf[RideHailTrip]
+  //        val vehicle = rTvG
+  //          .getEdgeTarget(
+  //            rTvG
+  //              .outgoingEdgesOf(trip)
+  //              .asScala
+  //              .filter(e => rTvG.getEdgeTarget(e).isInstanceOf[VehicleAndSchedule])
+  //              .head
+  //          )
+  //          .asInstanceOf[VehicleAndSchedule]
+  //        (trip, vehicle, trip.requests.sortBy(_.getId).map(_.getId).mkString(","))
+  //      }.toList
+  //
+  //    if (combinations.nonEmpty) {
+  //      val trips = combinations.map(_._3).distinct.toArray
+  //      val requests = spatialDemand.values().asScala.toArray
+  //      val vehicles = supply.toArray
+  //      import scala.language.implicitConversions
+  //      implicit val model = MPModel(SolverLib.oJSolver)
+  //
+  //      val epsilonVars = mutable.Map.empty[Integer, mutable.Map[Integer, MPBinaryVar]]
+  //      val chiVars = mutable.Map.empty[Integer, MPBinaryVar]
+  //      val objFunction = ListBuffer.empty[Expression]
+  //      val constraint1 = mutable.Map.empty[Integer, ListBuffer[Expression]]
+  //      val constraint2 = mutable.Map.empty[Integer, ListBuffer[Expression]]
+  //      combinations.foreach {
+  //        case (trip, vehicle, _) =>
+  //          val c_ij = trip.sumOfDelays
+  //          val i = trips.indexOf(trip.requests.sortBy(_.getId).map(_.getId).mkString(","))
+  //          val j = vehicles.indexOf(vehicle)
+  //          val epsilonVar = MPBinaryVar(s"epsilon($i,$j)")
+  //          epsilonVars.getOrElseUpdate(i, mutable.Map.empty[Integer, MPBinaryVar]).put(j, epsilonVar)
+  //          objFunction.append(c_ij * epsilonVar)
+  //          constraint1.getOrElseUpdate(j, ListBuffer.empty[Expression]).append(epsilonVar)
+  //      }
+  //      requests.zipWithIndex.foreach {
+  //        case (r, k) =>
+  //          combinations.filter(_._3.contains(r.getId)).foreach { t =>
+  //            val i = trips.indexOf(t._1.requests.sortBy(_.getId).map(_.getId).mkString(","))
+  //            val j = vehicles.indexOf(t._2)
+  //            constraint2.getOrElseUpdate(k, ListBuffer.empty[Expression]).append(epsilonVars(i)(j))
+  //          }
+  //          val c_k0 = 24*3600
+  //          val chiVar = MPBinaryVar(s"chi($k)")
+  //          chiVars.put(k, chiVar)
+  //          objFunction.append(c_k0 * chiVar)
+  //          constraint2.getOrElseUpdate(k, ListBuffer.empty[Expression]).append(chiVar)
+  //      }
+  //
+  //      minimize(sum(objFunction))
+  //      constraint1.values.foreach(cons1 => add(sum(cons1) <:= 1))
+  //      constraint2.values.foreach(cons2 => add(sum(cons2) := 1))
+  //      start()
+  //      for (i <- epsilonVars.keys) {
+  //        for (j <- epsilonVars(i).keys) {
+  //          val vehicle = vehicles(j)
+  //          val trip = combinations.find(c => c._2 == vehicle && c._3 == trips(i)).get._1
+  //          epsilonVars(i)(j).value match {
+  //            case Some(epsilon) if epsilon == 1 =>
+  //              optimalAssignment.append((trip, vehicle, trip.sumOfDelays))
+  //              //println(s"OK => vehicle: ${vehicle.getId} | trips: ${trips(i)} | sumOfDelays: ${trip.sumOfDelays}")
+  //            case _ =>
+  //              //println(s"KO => vehicle: ${vehicle.getId} | trips: ${trips(i)} | sumOfDelays: ${trip.sumOfDelays}")
+  //          }
+  //        }
+  //      }
+  //      release()
+  //    }
+  //    optimalAssignment.toList
+  //  }
+
+  def optimalAssignment2(rTvG: RTVGraph): List[(RideHailTrip, VehicleAndSchedule, Double)] = {
     val optimalAssignment = mutable.ListBuffer.empty[(RideHailTrip, VehicleAndSchedule, Double)]
     val combinations = rTvG
       .vertexSet()
@@ -208,80 +283,69 @@ class AlonsoMoraPoolingAlgForRideHail(
           )
           .asInstanceOf[VehicleAndSchedule]
         (trip, vehicle, trip.requests.sortBy(_.getId).map(_.getId).mkString(","))
-      }.toList
-
-//    val filteredCombination = ListBuffer.empty[(RideHailTrip, VehicleAndSchedule, String)]
-//    combinations.groupBy(_._3).foreach {
-//      case (_, comb) =>
-//        filteredCombination.appendAll(comb.toList.sortBy(_._1.sumOfDelays).take(5))
-//    }
-//
-//    val filteredCombination2 = ListBuffer.empty[(RideHailTrip, VehicleAndSchedule, String)]
-//    filteredCombination.groupBy(r => (r._2, r._1.requests.size)).foreach {
-//      case (_, comb) =>
-//        filteredCombination2.appendAll(comb.toList.sortBy(_._1.sumOfDelays).take(5))
-//    }
+      }
+      .toList
 
     if (combinations.nonEmpty) {
       val trips = combinations.map(_._3).distinct.toArray
       val requests = spatialDemand.values().asScala.toArray
       val vehicles = supply.toArray
       import scala.language.implicitConversions
-      implicit val model = MPModel(SolverLib.oJSolver)
-
-      val epsilonVars = mutable.Map.empty[Integer, mutable.Map[Integer, MPBinaryVar]]
-      val chiVars = mutable.Map.empty[Integer, MPBinaryVar]
-      val objFunction = ListBuffer.empty[Expression]
-      val constraint1 = mutable.Map.empty[Integer, ListBuffer[Expression]]
-      val constraint2 = mutable.Map.empty[Integer, ListBuffer[Expression]]
+      val solver: MPSolver =
+        new MPSolver("SolveAssignmentProblemMIP", MPSolver.OptimizationProblemType.CBC_MIXED_INTEGER_PROGRAMMING)
+      val objective = solver.objective()
+      objective.setMinimization()
+      val epsilonMap = mutable.Map.empty[Integer, mutable.Map[Integer, MPVariable]]
+      val ct1Map = mutable.Map.empty[Integer, MPConstraint]
+      val ct2Map = mutable.Map.empty[Integer, MPConstraint]
       combinations.foreach {
         case (trip, vehicle, _) =>
           val c_ij = trip.sumOfDelays
           val i = trips.indexOf(trip.requests.sortBy(_.getId).map(_.getId).mkString(","))
           val j = vehicles.indexOf(vehicle)
-          val epsilonVar = MPBinaryVar(s"epsilon($i,$j)")
-          epsilonVars.getOrElseUpdate(i, mutable.Map.empty[Integer, MPBinaryVar]).put(j, epsilonVar)
-          objFunction.append(c_ij * epsilonVar)
-          constraint1.getOrElseUpdate(j, ListBuffer.empty[Expression]).append(epsilonVar)
+          val epsilonVar = solver.makeBoolVar(s"epsilon($i,$j)")
+          epsilonMap.getOrElseUpdate(i, mutable.Map.empty[Integer, MPVariable]).put(j, epsilonVar)
+          // constraint 1
+          ct1Map
+            .getOrElseUpdate(j, solver.makeConstraint(0.0, 1.0, s"ct1_$j"))
+            .setCoefficient(epsilonVar, 1)
+          // objective
+          objective.setCoefficient(epsilonVar, c_ij)
       }
       requests.zipWithIndex.foreach {
         case (r, k) =>
           combinations.filter(_._3.contains(r.getId)).foreach { t =>
             val i = trips.indexOf(t._1.requests.sortBy(_.getId).map(_.getId).mkString(","))
             val j = vehicles.indexOf(t._2)
-            constraint2.getOrElseUpdate(k, ListBuffer.empty[Expression]).append(epsilonVars(i)(j))
+            // constraint 2
+            ct2Map
+              .getOrElseUpdate(k, solver.makeConstraint(1.0, 1.0, s"ct2_$k"))
+              .setCoefficient(epsilonMap(i)(j), 1)
           }
-          val c_k0 = 24*3600
-          val chiVar = MPBinaryVar(s"chi($k)")
-          chiVars.put(k, chiVar)
-          objFunction.append(c_k0 * chiVar)
-          constraint2.getOrElseUpdate(k, ListBuffer.empty[Expression]).append(chiVar)
+          val c_k0 = 24 * 3600
+          val chiVar = solver.makeBoolVar(s"chi($k)")
+          // constraint 2
+          ct2Map
+            .getOrElseUpdate(k, solver.makeConstraint(1.0, 1.0, s"ct2_$k"))
+            .setCoefficient(chiVar, 1)
+          // objective
+          objective.setCoefficient(chiVar, c_k0)
       }
-
-      minimize(sum(objFunction))
-      constraint1.values.foreach(cons1 => add(sum(cons1) <:= 1))
-      constraint2.values.foreach(cons2 => add(sum(cons2) := 1))
-      start()
-      for (i <- epsilonVars.keys) {
-        for (j <- epsilonVars(i).keys) {
-          val vehicle = vehicles(j)
-          val trip = combinations.find(c => c._2 == vehicle && c._3 == trips(i)).get._1
-          epsilonVars(i)(j).value match {
-            case Some(epsilon) if epsilon == 1 =>
+      val resultStatus = solver.solve
+      if (resultStatus ne MPSolver.ResultStatus.OPTIMAL) {
+        logger.error("The problem does not have an optimal solution!")
+      } else {
+        logger.info("optimal solution had been found")
+        for (i <- epsilonMap.keys) {
+          for (j <- epsilonMap(i).keys) {
+            val vehicle = vehicles(j)
+            val trip = combinations.find(c => c._2 == vehicle && c._3 == trips(i)).get._1
+            if (epsilonMap(i)(j).solutionValue() == 1) {
               optimalAssignment.append((trip, vehicle, trip.sumOfDelays))
-              //println(s"OK => vehicle: ${vehicle.getId} | trips: ${trips(i)} | sumOfDelays: ${trip.sumOfDelays}")
-            case _ =>
-              //println(s"KO => vehicle: ${vehicle.getId} | trips: ${trips(i)} | sumOfDelays: ${trip.sumOfDelays}")
+            }
           }
         }
       }
-//      println("RESULT printing")
-//      println("status " + status)
-//      println("objectiveValue " + objectiveValue)
-//      println("checkConstraints " + checkConstraints())
-//      for (k <- chiVars.keys) {
-//        println(s"$k => " + chiVars(k).value)
-//      }
     }
     optimalAssignment.toList
   }
@@ -289,11 +353,13 @@ class AlonsoMoraPoolingAlgForRideHail(
 
 object AlonsoMoraPoolingAlgForRideHail {
 
+  System.loadLibrary("jniortools")
+
   // ************ Helper functions ************
   def greedyAssignment(
-    rTvG: RTVGraph,
-    maximumVehCapacity: Int
-  ): List[(RideHailTrip, VehicleAndSchedule, Double)] = {
+                        rTvG: RTVGraph,
+                        maximumVehCapacity: Int
+                      ): List[(RideHailTrip, VehicleAndSchedule, Double)] = {
     val Rok = collection.mutable.HashSet.empty[CustomerRequest]
     val Vok = collection.mutable.HashSet.empty[VehicleAndSchedule]
     val greedyAssignmentList = ListBuffer.empty[(RideHailTrip, VehicleAndSchedule, Double)]
@@ -339,17 +405,17 @@ object AlonsoMoraPoolingAlgForRideHail {
   sealed trait RVGraphNode extends RTVGraphNode
   // customer requests
   case class CustomerRequest(person: PersonIdWithActorRef, pickup: MobilityRequest, dropoff: MobilityRequest)
-      extends RVGraphNode {
+    extends RVGraphNode {
     override def getId: String = person.personId.toString
     override def toString: String = s"Person:${person.personId}|Pickup:$pickup|Dropoff:$dropoff"
   }
   // Ride Hail vehicles, capacity and their predefined schedule
   case class VehicleAndSchedule(
-    vehicle: BeamVehicle,
-    schedule: List[MobilityRequest],
-    geofence: Option[Geofence],
-    vehicleRemainingRangeInMeters: Double = Double.MaxValue
-  ) extends RVGraphNode {
+                                 vehicle: BeamVehicle,
+                                 schedule: List[MobilityRequest],
+                                 geofence: Option[Geofence],
+                                 vehicleRemainingRangeInMeters: Double = Double.MaxValue
+                               ) extends RVGraphNode {
     private val numberOfPassengers: Int =
       schedule.takeWhile(_.tag != EnRoute).count(req => req.person.isDefined && req.tag == Dropoff)
     private val seatingCapacity: Int = vehicle.beamVehicleType.seatingCapacity
@@ -361,7 +427,7 @@ object AlonsoMoraPoolingAlgForRideHail {
   }
   // Trip that can be satisfied by one or more ride hail vehicle
   case class RideHailTrip(requests: List[CustomerRequest], schedule: List[MobilityRequest])
-      extends DefaultEdge
+    extends DefaultEdge
       with RTVGraphNode {
     var sumOfDelays: Int = 0
     var upperBoundDelays: Int = 0
@@ -376,9 +442,9 @@ object AlonsoMoraPoolingAlgForRideHail {
       s"${requests.size} requests and this schedule: ${schedule.map(_.toString).mkString("\n")}"
   }
   case class RVGraph(clazz: Class[RideHailTrip])
-      extends DefaultUndirectedWeightedGraph[RVGraphNode, RideHailTrip](clazz)
+    extends DefaultUndirectedWeightedGraph[RVGraphNode, RideHailTrip](clazz)
   case class RTVGraph(clazz: Class[DefaultEdge])
-      extends DefaultUndirectedWeightedGraph[RTVGraphNode, DefaultEdge](clazz)
+    extends DefaultUndirectedWeightedGraph[RTVGraphNode, DefaultEdge](clazz)
   // ***************************
 
 }
