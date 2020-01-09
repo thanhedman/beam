@@ -34,7 +34,7 @@ except:
 #
 # folder_path = "/home/ubuntu/git/beam/output/"
 
-
+binLengthInHours = 3.0
 
 def loadEvents(path, taz_path, outfolder):
     all_events = pd.read_csv(path)#, low_memory=False)
@@ -44,7 +44,7 @@ def loadEvents(path, taz_path, outfolder):
     del all_events
 
     refuelSession["kwh"] = refuelSession["fuel"]/3.6e6
-    refuelSession["hour"] = np.floor(refuelSession["time"]/3600).astype("int")
+    refuelSession["hour"] = np.floor(refuelSession["time"]/3600 / binLengthInHours).astype("int")
     refuelSession = refuelSession.loc[refuelSession['kwh'] > 0,:]
     
     locations = [Point(xy) for xy in zip(refuelSession['locationX'], refuelSession['locationY'])]
@@ -222,7 +222,7 @@ def assignChargingLocations(refuelSessions, n_clusters, powers, probs):
             clusters = refuelSessions.groupby(['chargingStationLabel','hour']).agg(
                     {'chargingStationLocationX':'first',
                      'chargingStationLocationY':'first', 
-                     'kwh': (lambda kwh: getMinimumNumberOfChargers(np.sum(kwh) / power, prob)),
+                     'kwh': (lambda kwh: getMinimumNumberOfChargers(np.sum(kwh) / power / binLengthInHours, prob)),
                      'vehicle':'count',
                      'distanceFromStation':'max',
                      'chargingStationLabel':'first'
@@ -417,8 +417,8 @@ if __name__ == '__main__':
     if run_purpose == "generate":
         Power_rated = [150.0, 50.0, 20.0] # in kW
         Max_queuing_probability = [0.1, 0.25, 0.5] # Chance that someone would find their nearest charger full
-        nstations_human = np.unique(np.logspace(np.log10(2),np.log10(taz.shape[0]/8),num=15,dtype=int))
-        nstations_cav = np.unique(np.logspace(np.log10(2),np.log10(taz.shape[0]/8),num=15,dtype=int))
+        nstations_human = np.unique(np.logspace(np.log10(2),np.log10(taz.shape[0]/10),num=15,dtype=int))
+        nstations_cav = np.unique(np.logspace(np.log10(2),np.log10(taz.shape[0]/10),num=15,dtype=int))
         
         output_val_human, output_array_human = generateParking(refuelSession_noncav, 'taz', Power_rated, nstations_human, Max_queuing_probability, taz, parking_out_folder, parking_input)
         output_val_cav, output_array_cav = generateParking(refuelSession_rhcav, 'depot', Power_rated, nstations_cav, Max_queuing_probability, taz, parking_out_folder)
