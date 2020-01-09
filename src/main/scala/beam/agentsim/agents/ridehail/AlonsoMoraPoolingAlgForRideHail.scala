@@ -353,8 +353,6 @@ class AlonsoMoraPoolingAlgForRideHail(
 
 object AlonsoMoraPoolingAlgForRideHail {
 
-  System.loadLibrary("jniortools")
-
   // ************ Helper functions ************
   def greedyAssignment(
                         rTvG: RTVGraph,
