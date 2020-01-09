@@ -3,8 +3,11 @@ package beam.agentsim.agents.ridehail
 import beam.agentsim.agents.ridehail.AlonsoMoraPoolingAlgForRideHail._
 import beam.agentsim.agents.vehicles.{BeamVehicle, PersonIdWithActorRef}
 import beam.agentsim.agents.{MobilityRequest, _}
-import beam.router.BeamSkimmer
+import beam.router.BeamRouter.Location
 import beam.router.Modes.BeamMode
+import beam.router.skim.{ODSkims, Skims, SkimsUtils}
+import beam.sim.common.GeoUtils
+import beam.sim.config.BeamConfig.Beam.Agentsim.Agents.RideHail.AllocationManager
 import beam.sim.{BeamServices, Geofence}
 import com.typesafe.scalalogging.LazyLogging
 //import optimus.algebra.AlgebraOps._
@@ -28,22 +31,20 @@ import com.google.ortools.linearsolver.MPSolver
 class AlonsoMoraPoolingAlgForRideHail(
                                        spatialDemand: QuadTree[CustomerRequest],
                                        supply: List[VehicleAndSchedule],
-                                       beamServices: BeamServices,
-                                       skimmer: BeamSkimmer
+                                       beamServices: BeamServices
                                      ) extends LazyLogging {
 
   // Methods below should be kept as def (instead of val) to allow automatic value updating
-  private val solutionSpaceSizePerVehicle: Int =
-    beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.solutionSpaceSizePerVehicle
-  private val waitingTimeInSec: Int =
-    beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.waitingTimeInSec
-  private implicit val implicitServices = beamServices
-
+  private def alonsoMora: AllocationManager.AlonsoMora =
+    beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora
+  private def solutionSpaceSizePerVehicle: Int = alonsoMora.numRequestsPerVehicle
+  private def waitingTimeInSec: Int = alonsoMora.waitingTimeInSec
+  private implicit val services = beamServices
 
   // Request Vehicle Graph
   def pairwiseRVGraph: RVGraph = {
     val rvG = RVGraph(classOf[RideHailTrip])
-    val searchRadius = waitingTimeInSec * BeamSkimmer.speedMeterPerSec(BeamMode.CAV)
+    val searchRadius = waitingTimeInSec * SkimsUtils.speedMeterPerSec(BeamMode.CAV)
 
     for (r1: CustomerRequest <- spatialDemand.values().asScala) {
       val center = r1.pickup.activity.getCoord
@@ -54,8 +55,7 @@ class AlonsoMoraPoolingAlgForRideHail(
               List.empty[MobilityRequest],
               List(r1.pickup, r1.dropoff, r2.pickup, r2.dropoff),
               Integer.MAX_VALUE,
-              skimmer
-            )
+              beamServices)
             .foreach { schedule =>
               rvG.addVertex(r2)
               rvG.addVertex(r1)
@@ -88,7 +88,7 @@ class AlonsoMoraPoolingAlgForRideHail(
                 v.schedule,
                 List(r.pickup, r.dropoff),
                 v.vehicleRemainingRangeInMeters.toInt,
-                skimmer
+                beamServices
               )
               .foreach { schedule =>
                 rvG.addVertex(v)
@@ -128,7 +128,7 @@ class AlonsoMoraPoolingAlgForRideHail(
                 v.schedule,
                 (t1.requests ++ t2.requests).flatMap(x => List(x.pickup, x.dropoff)),
                 v.vehicleRemainingRangeInMeters.toInt,
-                skimmer
+                beamServices
               )
               .foreach { schedule =>
                 val t = RideHailTrip(t1.requests ++ t2.requests, schedule)
@@ -156,7 +156,7 @@ class AlonsoMoraPoolingAlgForRideHail(
                   v.schedule,
                   (t1.requests ++ t2.requests).flatMap(x => List(x.pickup, x.dropoff)),
                   v.vehicleRemainingRangeInMeters.toInt,
-                  skimmer
+                  beamServices
                 )
                 .foreach { schedule =>
                   val t = RideHailTrip(t1.requests ++ t2.requests, schedule)

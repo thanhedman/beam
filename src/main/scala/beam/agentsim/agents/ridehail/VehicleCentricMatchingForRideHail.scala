@@ -1,8 +1,8 @@
 package beam.agentsim.agents.ridehail
 
 import beam.agentsim.agents.ridehail.AlonsoMoraPoolingAlgForRideHail._
-import beam.router.BeamSkimmer
 import beam.router.Modes.BeamMode
+import beam.router.skim.SkimsUtils
 import beam.sim.BeamServices
 import beam.sim.common.GeoUtils
 import org.matsim.core.utils.collections.QuadTree
@@ -14,17 +14,16 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 class VehicleCentricMatchingForRideHail(
-  demand: QuadTree[CustomerRequest],
-  supply: List[VehicleAndSchedule],
-  services: BeamServices,
-  skimmer: BeamSkimmer
+                                         demand: QuadTree[CustomerRequest],
+                                         supply: List[VehicleAndSchedule],
+                                         services: BeamServices
 ) {
   private val solutionSpaceSizePerVehicle =
-    services.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.solutionSpaceSizePerVehicle
+    services.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.numRequestsPerVehicle
   private val waitingTimeInSec =
     services.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora.waitingTimeInSec
-  private val searchRadius = waitingTimeInSec * BeamSkimmer.speedMeterPerSec(BeamMode.CAV)
-  private implicit val implicitServices = services
+  private val searchRadius = waitingTimeInSec * SkimsUtils.speedMeterPerSec(BeamMode.CAV)
+  private implicit val beamServices = services
 
   type AssignmentKey = (RideHailTrip, VehicleAndSchedule, Double)
 
@@ -65,7 +64,7 @@ class VehicleCentricMatchingForRideHail(
       .flatten(
         c =>
           MatchmakingUtils
-            .getRidehailSchedule(v.schedule, List(c.pickup, c.dropoff), v.vehicleRemainingRangeInMeters.toInt, skimmer)
+            .getRidehailSchedule(v.schedule, List(c.pickup, c.dropoff), v.vehicleRemainingRangeInMeters.toInt, services)
             .map(schedule => (c, schedule))
       )
       .foreach {
@@ -97,7 +96,7 @@ class VehicleCentricMatchingForRideHail(
                   v.schedule,
                   requests.flatMap(x => List(x.pickup, x.dropoff)),
                   v.vehicleRemainingRangeInMeters.toInt,
-                  skimmer
+                  services
                 ) match {
                   case Some(schedule) =>
                     val t = RideHailTrip(requests, schedule)

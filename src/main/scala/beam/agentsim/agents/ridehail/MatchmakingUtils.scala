@@ -1,14 +1,14 @@
 package beam.agentsim.agents.ridehail
 
 import beam.agentsim.agents.planning.Trip
-import beam.agentsim.agents.ridehail.AlonsoMoraPoolingAlgForRideHail.{CustomerRequest, RideHailTrip, VehicleAndSchedule}
+import beam.agentsim.agents.ridehail.AlonsoMoraPoolingAlgForRideHail.{CustomerRequest, RideHailTrip, VehicleAndSchedule, getTimeDistanceAndCost}
 import beam.agentsim.agents.ridehail.RideHailVehicleManager.RideHailAgentLocation
 import beam.agentsim.agents.vehicles.EnergyEconomyAttributes.Powertrain
 import beam.agentsim.agents.vehicles.{BeamVehicle, BeamVehicleType, PersonIdWithActorRef}
 import beam.agentsim.agents._
 import beam.router.BeamRouter.Location
-import beam.router.BeamSkimmer
 import beam.router.Modes.BeamMode
+import beam.router.skim.Skims
 import beam.sim.common.GeoUtils
 import beam.sim.config.BeamConfig.Beam.Agentsim.Agents.RideHail.AllocationManager
 import beam.sim.{BeamServices, Geofence}
@@ -18,8 +18,8 @@ import org.geotools.referencing.crs.DefaultGeographicCRS
 import org.matsim.api.core.v01.population.Activity
 import org.matsim.api.core.v01.{Coord, Id}
 import org.matsim.core.population.PopulationUtils
-import scala.util.control.Breaks._
 
+import scala.util.control.Breaks._
 import scala.collection.immutable.List
 import scala.collection.mutable.ListBuffer
 import scala.collection.mutable
@@ -80,6 +80,20 @@ object MatchmakingUtils {
     }
   }
 
+  def getTimeDistanceAndCost(src: MobilityRequest, dst: MobilityRequest, beamServices: BeamServices) = {
+    Skims.od_skimmer.getTimeDistanceAndCost(
+      src.activity.getCoord,
+      dst.activity.getCoord,
+      src.baselineNonPooledTime,
+      BeamMode.CAR,
+      Id.create(
+        beamServices.beamScenario.beamConfig.beam.agentsim.agents.rideHail.initialization.procedural.vehicleTypeId,
+        classOf[BeamVehicleType]
+      ),
+      beamServices
+    )
+  }
+
   def getNearbyRequestsHeadingSameDirection(v: VehicleAndSchedule, demand: List[CustomerRequest], searchSpace: Int)(
     implicit services: BeamServices
   ): List[CustomerRequest] = {
@@ -119,7 +133,7 @@ object MatchmakingUtils {
                            schedule: List[MobilityRequest],
                            newRequests: List[MobilityRequest],
                            remainingVehicleRangeInMeters: Int,
-                           skimmer: BeamSkimmer
+                           beamServices: BeamServices
                          ): Option[List[MobilityRequest]] = {
     val newPoolingList = scala.collection.mutable.ListBuffer.empty[MobilityRequest]
     val reversedSchedule = schedule.reverse
@@ -152,16 +166,7 @@ object MatchmakingUtils {
     breakable {
       for (curReq <- sortedRequests) {
         val prevReq = newPoolingList.lastOption.getOrElse(newPoolingList.last)
-        val tdc = skimmer.getTimeDistanceAndCost(
-          prevReq.activity.getCoord,
-          curReq.activity.getCoord,
-          prevReq.baselineNonPooledTime,
-          BeamMode.CAR,
-          Id.create(
-            skimmer.beamScenario.beamConfig.beam.agentsim.agents.rideHail.initialization.procedural.vehicleTypeId,
-            classOf[BeamVehicleType]
-          )
-        )
+        val tdc = getTimeDistanceAndCost(prevReq, curReq, beamServices)
         val serviceTime = prevReq.serviceTime + tdc.time
         val serviceDistance = prevReq.serviceDistance + tdc.distance.toInt
         if (serviceTime <= curReq.upperBoundTime && serviceDistance <= remainingVehicleRangeInMeters) {
@@ -181,27 +186,26 @@ object MatchmakingUtils {
                            departureTime: Int,
                            dst: Location,
                            beamServices: BeamServices
-                         )(
-                           implicit skimmer: BeamSkimmer
                          ): CustomerRequest = {
     val alonsoMora: AllocationManager.AlonsoMora =
       beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora
     val waitingTimeInSec = alonsoMora.waitingTimeInSec
-    val travelTimeDelayAsFraction = alonsoMora.travelTimeDelayAsFraction
+    val travelTimeDelayAsFraction = alonsoMora.excessRideTimeAsFraction
 
     val p1Act1: Activity = PopulationUtils.createActivityFromCoord(s"${vehiclePersonId.personId}Act1", src)
     p1Act1.setEndTime(departureTime)
     val p1Act2: Activity = PopulationUtils.createActivityFromCoord(s"${vehiclePersonId.personId}Act2", dst)
-    val skim = skimmer
+    val skim = Skims.od_skimmer
       .getTimeDistanceAndCost(
         p1Act1.getCoord,
         p1Act2.getCoord,
         departureTime,
         BeamMode.CAR,
         Id.create(
-          skimmer.beamScenario.beamConfig.beam.agentsim.agents.rideHail.initialization.procedural.vehicleTypeId,
+          beamServices.beamScenario.beamConfig.beam.agentsim.agents.rideHail.initialization.procedural.vehicleTypeId,
           classOf[BeamVehicleType]
-        )
+        ),
+        beamServices
       )
     CustomerRequest(
       vehiclePersonId,
@@ -250,7 +254,7 @@ object MatchmakingUtils {
     val alonsoMora: AllocationManager.AlonsoMora =
       beamServices.beamConfig.beam.agentsim.agents.rideHail.allocationManager.alonsoMora
     val waitingTimeInSec = alonsoMora.waitingTimeInSec
-    val travelTimeDelayAsFraction = alonsoMora.travelTimeDelayAsFraction
+    val travelTimeDelayAsFraction = alonsoMora.excessRideTimeAsFraction
 
     veh.currentPassengerSchedule.foreach {
       _.schedule.foreach {
