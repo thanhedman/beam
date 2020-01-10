@@ -1,11 +1,11 @@
 package beam.agentsim.agents.ridehail
 
+import beam.agentsim.agents._
 import beam.agentsim.agents.planning.Trip
-import beam.agentsim.agents.ridehail.AlonsoMoraPoolingAlgForRideHail.{CustomerRequest, RideHailTrip, VehicleAndSchedule, getTimeDistanceAndCost}
+import beam.agentsim.agents.ridehail.AlonsoMoraPoolingAlgForRideHail.{CustomerRequest, RideHailTrip, VehicleAndSchedule}
 import beam.agentsim.agents.ridehail.RideHailVehicleManager.RideHailAgentLocation
 import beam.agentsim.agents.vehicles.EnergyEconomyAttributes.Powertrain
 import beam.agentsim.agents.vehicles.{BeamVehicle, BeamVehicleType, PersonIdWithActorRef}
-import beam.agentsim.agents._
 import beam.router.BeamRouter.Location
 import beam.router.Modes.BeamMode
 import beam.router.skim.Skims
@@ -19,10 +19,9 @@ import org.matsim.api.core.v01.population.Activity
 import org.matsim.api.core.v01.{Coord, Id}
 import org.matsim.core.population.PopulationUtils
 
-import scala.util.control.Breaks._
 import scala.collection.immutable.List
 import scala.collection.mutable.ListBuffer
-import scala.collection.mutable
+import scala.util.control.Breaks._
 
 object MatchmakingUtils {
 

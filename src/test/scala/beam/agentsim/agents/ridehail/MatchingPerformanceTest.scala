@@ -1,11 +1,11 @@
 package beam.agentsim.agents.ridehail
 
-import java.io.{BufferedWriter, FileNotFoundException, FileWriter}
+import java.io.{BufferedWriter, FileWriter}
 
 import akka.actor.ActorRef
 import beam.agentsim.agents.ridehail.AlonsoMoraPoolingAlgForRideHail.{CustomerRequest, VehicleAndSchedule}
 import beam.agentsim.agents.vehicles.{BeamVehicleType, PersonIdWithActorRef}
-import beam.router.BeamSkimmer
+import beam.router.skim.Skims
 import beam.sim.config.{BeamConfig, MatSimBeamConfigBuilder}
 import beam.sim.{BeamHelper, BeamServices}
 import beam.utils.FileUtils
@@ -32,8 +32,27 @@ object MatchingPerformanceTest extends BeamHelper {
                    |beam.physsim.skipPhysSim = true
                    |beam.agentsim.lastIteration = 0
                    |beam.agentsim.agents.rideHail.allocationManager.alonsoMora.waitingTimeInSec = 1800
-                   |beam.agentsim.agents.rideHail.allocationManager.alonsoMora.travelTimeDelayAsFraction= 0.80
-                   |beam.agentsim.agents.rideHail.allocationManager.alonsoMora.solutionSpaceSizePerVehicle = 4
+                   |beam.agentsim.agents.rideHail.allocationManager.alonsoMora.excessRideTimeAsFraction= 0.80
+                   |beam.agentsim.agents.rideHail.allocationManager.alonsoMora.numRequestsPerVehicle = 4
+                   |beam.router.skim = {
+                   |  keepKLatestSkims = 1
+                   |  writeSkimsInterval = 1
+                   |  writeAggregatedSkimsInterval = 1
+                   |  travel-time-skimmer {
+                   |    name = "travel-time-skimmer"
+                   |    fileBaseName = "skimsTravelTimeObservedVsSimulated"
+                   |  }
+                   |  origin_destination_skimmer {
+                   |    name = "od-skimmer"
+                   |    fileBaseName = "skimsOD"
+                   |    writeAllModeSkimsForPeakNonPeakPeriodsInterval = 0
+                   |    writeFullSkimsInterval = 0
+                   |  }
+                   |  taz-skimmer {
+                   |    name = "taz-skimmer"
+                   |    fileBaseName = "skimsTAZ"
+                   |  }
+                   |}
         """.stripMargin)
     .withFallback(testConfig("test/input/sf-light/sf-light-25k.conf"))
     .resolve()
@@ -53,29 +72,39 @@ object MatchingPerformanceTest extends BeamHelper {
     }
   )
   implicit val services = injector.getInstance(classOf[BeamServices])
-  implicit val skimmer = injector.getInstance(classOf[BeamSkimmer])
   implicit val actorRef = ActorRef.noSender
 
-  val startTime = 8 * 3600
-  val endTime = startTime + 1 * 60
+  Skims.setup(services)
 
-  val (spatialPoolCustomerReqs, availVehicles) = buildSpatialPoolCustomerReqs(startTime, endTime, 100, "1min100veh")
+  println("Loading jniortools ...")
+  try {
+    System.loadLibrary("jniortools")
+  }
+  catch {
+    case e: UnsatisfiedLinkError =>
+      System.err.println("jniortools failed to load.\n" + e)
+  }
+
+  val startTime = 8 * 3600
+  val endTime = startTime + 4 * 60
+
+  val (spatialPoolCustomerReqs, availVehicles) = buildSpatialPoolCustomerReqs(startTime, endTime, 1000, "4min100veh")
 
   def main(args: Array[String]): Unit = {
 
     println(s"requests: ${spatialPoolCustomerReqs.size}, vehicles: ${availVehicles.size}")
 
-    //vehicleCentricMatchingForRideHail()
+    vehicleCentricMatchingForRideHail()
 
     //asyncAlonsoMoraAlgForRideHail()
 
-    alonsoMoraPoolingAlgForRideHail()
+    //alonsoMoraPoolingAlgForRideHail()
 
     println("END")
   }
 
   private def vehicleCentricMatchingForRideHail(): Unit = {
-    val alg1 = new VehicleCentricMatchingForRideHail(spatialPoolCustomerReqs, availVehicles, services, skimmer)
+    val alg1 = new VehicleCentricMatchingForRideHail(spatialPoolCustomerReqs, availVehicles, services)
     try {
       val t0 = System.nanoTime()
       val assignment = Await.result(alg1.matchAndAssign(0), atMost = 1440.minutes)
@@ -97,7 +126,7 @@ object MatchingPerformanceTest extends BeamHelper {
   }
 
   private def alonsoMoraPoolingAlgForRideHail(): Unit = {
-    val alg3 = new AlonsoMoraPoolingAlgForRideHail(spatialPoolCustomerReqs, availVehicles, services, skimmer)
+    val alg3 = new AlonsoMoraPoolingAlgForRideHail(spatialPoolCustomerReqs, availVehicles, services)
     try {
       val t0 = System.nanoTime()
       val assignment = Await.result(alg3.matchAndAssign(0), atMost = 1440.minutes)
@@ -119,7 +148,7 @@ object MatchingPerformanceTest extends BeamHelper {
   }
 
   private def asyncAlonsoMoraAlgForRideHail(): Unit = {
-    val alg2 = new AsyncAlonsoMoraAlgForRideHail(spatialPoolCustomerReqs, availVehicles, services, skimmer)
+    val alg2 = new AsyncAlonsoMoraAlgForRideHail(spatialPoolCustomerReqs, availVehicles, services)
     try {
       val t0 = System.nanoTime()
       val assignment = Await.result(alg2.matchAndAssign(0), atMost = 1440.minutes)

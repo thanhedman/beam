@@ -8,15 +8,13 @@ object RunBeam extends BeamHelper {
     System.setProperty(ContextInitializer.CONFIG_FILE_PROPERTY, "logback.xml")
 
   def main(args: Array[String]): Unit = {
-    println("Test")
+    println("Loading jniortools ...")
     try {
       System.loadLibrary("jniortools")
-      //System.load("/Users/haitam/workspace/beam-github/pooling-test/lib/libjniortools.jnilib")
-     // System.load("/Users/haitam/workspace/beam-github/pooling-test/lib/libortools.dylib")
     }
     catch {
       case e: UnsatisfiedLinkError =>
-        System.err.println("yoooo Native code library failed to load.\n" + e)
+        System.err.println("jniortools failed to load.\n" + e)
     }
 
     print(beamAsciiArt)

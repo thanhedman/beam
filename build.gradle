@@ -226,8 +226,8 @@ dependencies {
     compile "com.github.vagmcs:optimus_${scalaBinaryVersion}:3.1.0"
     compile "com.github.vagmcs:optimus-solver-oj_${scalaBinaryVersion}:3.1.0"
 
-    compile group: 'io.github.oliviercailloux', name: 'google-or-tools', version: '6.7.2'
-    //compile fileTree(include: ['*'], dir: 'lib')
+    //compile group: 'io.github.oliviercailloux', name: 'google-or-tools', version: '6.7.2'
+    compile fileTree(include: ['*'], dir: 'lib', excludes: ['protobuf.jar'])
 
     ////////////////////////////////////
     ///Performance Monitoring (Kamon)///
@@ -439,10 +439,15 @@ def jfrWithMem = ["-XX:+UnlockCommercialFeatures", "-XX:+UnlockDiagnosticVMOptio
                   "-XX:StartFlightRecording=delay=2s,duration=60m,name=mem_ex,filename=recording.jfr,settings=profile_heap_exception",
                   "-XX:+FlightRecorder", "-XX:FlightRecorderOptions=disk=true,maxage=10h,dumponexit=true,loglevel=info"]
 
+
+def jmx = ["-Dcom.sun.management.jmxremote", "-Dcom.sun.management.jmxremote.port=9005", "-Dcom.sun.management.jmxremote.host=127.0.0.1",
+           "-Dcom.sun.management.jmxremote.local.only=true", "-Dcom.sun.management.jmxremote.authenticate=false", "-Dcom.sun.management.jmxremote.ssl=false",
+           "-Djava.net.preferIPv4Stack=true", "-Djava.rmi.server.hostname=127.0.0.1"]
+
 // UseParallelGC
 applicationDefaultJvmArgs = ["-Xmx${myAvailableRam}g", "-Xms${myAvailableRam/2}g",
                              "-XX:+UseParallelGC", "-XX:+UseParallelOldGC", "-XX:MetaspaceSize=150M", "-Djava.awt.headless=true",
-                             "-Dlogback.configurationFile=logback_prod.xml", "-Djava.library.path=lib"] + logGC
+                             "-Dlogback.configurationFile=logback_prod.xml", "-Djava.library.path=lib"] + logGC + jmx
 
 println(applicationDefaultJvmArgs)
 

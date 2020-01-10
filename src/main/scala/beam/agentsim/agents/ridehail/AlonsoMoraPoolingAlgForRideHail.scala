@@ -295,40 +295,43 @@ class AlonsoMoraPoolingAlgForRideHail(
         new MPSolver("SolveAssignmentProblemMIP", MPSolver.OptimizationProblemType.CBC_MIXED_INTEGER_PROGRAMMING)
       val objective = solver.objective()
       objective.setMinimization()
-      val epsilonMap = mutable.Map.empty[Integer, mutable.Map[Integer, MPVariable]]
-      val ct1Map = mutable.Map.empty[Integer, MPConstraint]
-      val ct2Map = mutable.Map.empty[Integer, MPConstraint]
+      val epsilonMap = mutable.Map.empty[Integer, mutable.Map[Integer, (MPVariable, Double)]]
+      val ct1Map = mutable.Map.empty[Integer, mutable.Map[Integer, MPVariable]]
       combinations.foreach {
-        case (trip, vehicle, _) =>
-          val c_ij = trip.sumOfDelays
-          val i = trips.indexOf(trip.requests.sortBy(_.getId).map(_.getId).mkString(","))
+        case (trip, vehicle, tripId) =>
+          val i = trips.indexOf(tripId)
           val j = vehicles.indexOf(vehicle)
-          val epsilonVar = solver.makeBoolVar(s"epsilon($i,$j)")
-          epsilonMap.getOrElseUpdate(i, mutable.Map.empty[Integer, MPVariable]).put(j, epsilonVar)
-          // constraint 1
-          ct1Map
-            .getOrElseUpdate(j, solver.makeConstraint(0.0, 1.0, s"ct1_$j"))
-            .setCoefficient(epsilonVar, 1)
-          // objective
-          objective.setCoefficient(epsilonVar, c_ij)
+          val c_ij = trip.sumOfDelays
+          val (epsilon_ij, _) = epsilonMap.getOrElseUpdate(i, mutable.Map.empty[Integer, (MPVariable, Double)]).getOrElseUpdate(j, (solver.makeBoolVar(s"epsilon($i,$j)"), c_ij))
+          ct1Map.getOrElseUpdate(j, mutable.Map.empty[Integer, MPVariable]).getOrElseUpdate(i, epsilon_ij)
+      }
+      // setting up the first half of the objective function
+      epsilonMap.flatMap(_._2.values).foreach {
+        case (epsilon, c) =>
+          objective.setCoefficient(epsilon, c)
+      }
+      // setting up the constraint 1
+      ct1Map.foreach {
+        case (j, ct1_ji) =>
+          val ct1_j = solver.makeConstraint(0.0, 1.0, s"ct1_$j")
+          ct1_ji.values.foreach(ct1_j.setCoefficient(_, 1))
       }
       requests.zipWithIndex.foreach {
         case (r, k) =>
-          combinations.filter(_._3.contains(r.getId)).foreach { t =>
-            val i = trips.indexOf(t._1.requests.sortBy(_.getId).map(_.getId).mkString(","))
-            val j = vehicles.indexOf(t._2)
-            // constraint 2
-            ct2Map
-              .getOrElseUpdate(k, solver.makeConstraint(1.0, 1.0, s"ct2_$k"))
-              .setCoefficient(epsilonMap(i)(j), 1)
+          val ct2_kij = mutable.Map.empty[Integer, mutable.Map[Integer, MPVariable]]
+          combinations.filter(_._3.contains(r.getId)).foreach {
+            case (trip, vehicle, tripId) =>
+            val i = trips.indexOf(tripId)
+            val j = vehicles.indexOf(vehicle)
+            ct2_kij.getOrElseUpdate(i, mutable.Map.empty[Integer, MPVariable]).getOrElseUpdate(j, epsilonMap(i)(j)._1)
           }
           val c_k0 = 24 * 3600
           val chiVar = solver.makeBoolVar(s"chi($k)")
           // constraint 2
-          ct2Map
-            .getOrElseUpdate(k, solver.makeConstraint(1.0, 1.0, s"ct2_$k"))
-            .setCoefficient(chiVar, 1)
-          // objective
+          val ct2_k = solver.makeConstraint(1.0, 1.0, s"ct2_$k")
+          ct2_k.setCoefficient(chiVar, 1)
+          ct2_kij.flatMap(_._2.values).foreach(ct2_k.setCoefficient(_, 1))
+          // + objective
           objective.setCoefficient(chiVar, c_k0)
       }
       val resultStatus = solver.solve
@@ -340,7 +343,7 @@ class AlonsoMoraPoolingAlgForRideHail(
           for (j <- epsilonMap(i).keys) {
             val vehicle = vehicles(j)
             val trip = combinations.find(c => c._2 == vehicle && c._3 == trips(i)).get._1
-            if (epsilonMap(i)(j).solutionValue() == 1) {
+            if (epsilonMap(i)(j)._1.solutionValue() == 1) {
               optimalAssignment.append((trip, vehicle, trip.sumOfDelays))
             }
           }
