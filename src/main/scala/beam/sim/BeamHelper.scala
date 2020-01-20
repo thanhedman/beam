@@ -871,9 +871,15 @@ trait BeamHelper extends LazyLogging {
 
       writeMetric("beam-run-charging-depots-cnt", cntChargingDepots)
 
-      writeMetric("beam-run-public-fast-charge-cnt", cntPublicFastCharge)
-      writeMetric("beam-run-public-fast-charge-stalls-cnt", cntPublicFastChargeStalls)
-      writeMetric("beam-run-charging-depots-stalls-cnt", cntChargingDepotsStalls)
+      if (beamConfig.beam.agentsim.taz.parkingStallChargerInitMethod == "UNLIMITED") {
+        writeStrMetric("beam-run-public-fast-charge-cnt", "UNLIMITED")
+        writeStrMetric("beam-run-public-fast-charge-stalls-cnt", "UNLIMITED")
+        writeStrMetric("beam-run-charging-depots-stalls-cnt", "UNLIMITED")
+      } else {
+        writeMetric("beam-run-public-fast-charge-cnt", cntPublicFastCharge)
+        writeMetric("beam-run-public-fast-charge-stalls-cnt", cntPublicFastChargeStalls)
+        writeMetric("beam-run-charging-depots-stalls-cnt", cntChargingDepotsStalls)
+      }
     } else {
       logger.error(
         s"Can't read charging information not from 'beamConfig.beam.agentsim.agents.rideHail.initialization.parking.filePath' nor from 'beamConfig.beam.agentsim.taz.parkingFilePath'. Metrics will get 0 values."
