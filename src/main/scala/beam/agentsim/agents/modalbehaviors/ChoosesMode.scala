@@ -214,10 +214,11 @@ trait ChoosesMode {
           }.map{ mode =>
             val vehicleTypeId = newlyAvailableBeamVehicles.find(_.streetVehicle.mode == mode).getOrElse(bodyStreetVehicleToken).streetVehicle.vehicleTypeId
             val theSkim = Skims.od_skimmer.getTimeDistanceAndCost(currentPersonLocation.loc,nextAct.getCoord,departTime,mode,vehicleTypeId,beamServices)
-            val scaledTime = attributes.getVOT(theSkim.generalizedTime/3600)
+            val scaledTime = attributes.getVOT(theSkim.time/3600)
             ModeCostTimeTransfer(mode,theSkim.cost, scaledTime, 0)
           }.toIndexedSeq
           modeChoiceCalculator.chooseModeFromAttributes(theInputData,attributes,Some(nextAct)).toSeq
+          modes
         }
       }
       var availableModes: Seq[BeamMode] = availableModesForPerson(
@@ -990,6 +991,45 @@ trait ChoosesMode {
           .asInstanceOf[AttributesOfIndividual]
       val availableAlts = Some(filteredItinerariesForChoice.map(_.tripClassifier).mkString(":"))
 
+
+
+
+
+/*      log.info("=====================================================")
+      log.info("call chooseModeFromAttributes with skims:")
+
+      val availableModes1: Seq[BeamMode] = availableModesForPerson(
+        matsimPlan.getPerson
+      ).filterNot(mode => choosesModeData.excludeModes.contains(mode) || mode==TRANSIT)
+      val bodyStreetVehicle = StreetVehicle(
+        body.id,
+        body.beamVehicleType.id,
+        currentPersonLocation,
+        WALK,
+        asDriver = true
+      )
+      val departTime = _currentTick.get
+      val bodyStreetVehicleToken: VehicleOrToken = Token(body.id,self,bodyStreetVehicle)
+      val theInputData = availableModes1.filter{ mode =>
+        mode match {
+          case CAR | BIKE =>
+            beamVehicles.values.find(_.streetVehicle.mode == mode).isDefined
+          case DRIVE_TRANSIT =>
+            beamVehicles.values.find(_.streetVehicle.mode == CAR).isDefined
+          case CAV =>
+            false // CAVs are planned in household and not selected for dynamically
+          case _ =>
+            true
+        }
+      }.map{ mode =>
+        val vehicleTypeId = beamVehicles.values.find(_.streetVehicle.mode == mode).getOrElse(bodyStreetVehicleToken).streetVehicle.vehicleTypeId
+        val theSkim = Skims.od_skimmer.getTimeDistanceAndCost(currentPersonLocation.loc,nextAct.getCoord,departTime,mode,vehicleTypeId,beamServices)
+        val scaledTime = attributes.getVOT(theSkim.generalizedTime/3600)
+        ModeCostTimeTransfer(mode,theSkim.cost, scaledTime, 0)
+      }.toIndexedSeq
+      modeChoiceCalculator.chooseModeFromAttributes(theInputData,attributes,Some(nextAct)).toSeq*/
+
+      //log.info("call chooseModeFromAttributes without skims:")
       modeChoiceCalculator.chooseModeFromEmboidedBeamTrips(
         filteredItinerariesForChoice,
         attributesOfIndividual,
