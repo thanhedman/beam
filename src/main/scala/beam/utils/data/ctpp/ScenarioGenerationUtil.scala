@@ -38,6 +38,29 @@ object ScenarioGenerationUtil {
 
 // TODO: Rashid -> create tasks for converting above data to probabilities
 
+
+
+  def drawhouseHoldSize(scenario: Scenario, taz:TAZ): Int = {
+    val frequencies=houseHoldSize(scenario, taz)  // hhSize -> freq
+
+    // convert to propbabilities (divide freq/sum(freq))  // hhSize -> prob
+      // 1-> 0.15
+      // 2-> 0.35
+      // 3-> 0.25
+      // 4-> 0.25
+
+    // ranges: 1-> [0,0.15),
+               2-> [0.15,0.5)
+                 3-> [0.5,0.75)
+                 4-> [0.75,1.0]
+    // draw number between 0 and 1 -> 0.45 -> 2
+                                      0.76 -> 4
+
+
+
+
+  }
+
   def drawHousehold(scenario: Scenario): Household = ???
   def drawHouseholds(scenario: Scenario): Set[Household] = ???
 
