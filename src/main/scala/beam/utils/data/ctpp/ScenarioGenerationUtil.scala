@@ -35,30 +35,55 @@ object ScenarioGenerationUtil {
   def drawFirstHomeActEndTime():Double = ???
   def drawWorkActDuration(firstHomeActEndTime:Double): Double = ???
 
+  val random = scala.util.Random
 
 // TODO: Rashid -> create tasks for converting above data to probabilities
 
 
+  def drawGenderSize(scenario: Scenario, taz:TAZ): Gender  = {
+    val frequencies = getGender(scenario, taz)
+    getFrequency[Gender](frequencies)
+  }
 
-  def drawhouseHoldSize(scenario: Scenario, taz:TAZ): Int = {
-    val frequencies=houseHoldSize(scenario, taz)  // hhSize -> freq
+  def drawIncomeSize(scenario: Scenario, taz:TAZ): Range = {
+    val frequencies=getIncome(scenario, taz)
+    getFrequency[Range](frequencies)
+  }
 
-    // convert to propbabilities (divide freq/sum(freq))  // hhSize -> prob
-      // 1-> 0.15
-      // 2-> 0.35
-      // 3-> 0.25
-      // 4-> 0.25
+  def drawWorkTAZs(scenario: Scenario, taz:TAZ): TAZ = {
+    val frequencies=getWorkTAZs(scenario, taz)
+    getFrequency[TAZ](frequencies)
+  }
 
-    // ranges: 1-> [0,0.15),
-               2-> [0.15,0.5)
-                 3-> [0.5,0.75)
-                 4-> [0.75,1.0]
-    // draw number between 0 and 1 -> 0.45 -> 2
-                                      0.76 -> 4
+  def drawNumberOfVehicles(scenario: Scenario, taz:TAZ): Int = {
+    val frequencies=getNumberOfVehicles(scenario, taz)
+    getFrequency[Int](frequencies)
+  }
 
+  def drawHouseHoldSize(scenario: Scenario, taz:TAZ): Int = {
+    val frequencies=houseHoldSize(scenario, taz)
+    getFrequency[Int](frequencies)
+  }
 
+  def drawAgeSize(scenario: Scenario, taz:TAZ): Range = {
+    val frequencies=getAge(scenario, taz)
+    getFrequency[Range](frequencies)
+  }
 
-
+  def getFrequency[A](frequencies: Map[A, Int]): A = {
+    val total = frequencies.values.sum.toDouble
+    val randomNumber = random.nextDouble()
+    var sum = 0.0
+    for((key, value) <- frequencies) {
+      val probability = value.toDouble/ total
+      if(randomNumber >= sum && randomNumber < sum + probability) {
+        return key
+      }
+      else {
+        sum = sum + probability
+      }
+    }
+    frequencies.keys.last
   }
 
   def drawHousehold(scenario: Scenario): Household = ???
@@ -69,8 +94,8 @@ object ScenarioGenerationUtil {
   def sampleHomeToWorkTAZ(scenario: Scenario):(TAZ,TAZ) = ???
   def getAllTAZs(scenario: Scenario):Set[TAZ] = ???
   def sampleFromTAZ(taz: TAZ):Coord = ???
-  def drawFirstHomeActEndTime():Double = ???
-  def drawWorkActDuration(firstHomeActEndTime:Double): Double = ???
+  //def drawFirstHomeActEndTime():Double = ???
+  //def drawWorkActDuration(firstHomeActEndTime:Double): Double = ???
 
   def drawHousehold(scenario: Scenario, taz:TAZ): Household = ???
 
@@ -97,9 +122,15 @@ object ScenarioGenerationUtil {
   }
 
 
-
-  // TODO: rajnikant should start implementing following
-  def getPlanRows(personId: String, homeLocation: Coord, endTimeFirstHomeActivity: Double, workLocation: Coord, endTimeWorkActivity:Double): List[PlansTableRow] = ???
+  def getPlanRows(personId: String, homeLocation: Coord, endTimeFirstHomeActivity: Double, workLocation: Coord, endTimeWorkActivity:Double): List[PlansTableRow] = {
+    List(
+      PlansTableRow(personId, 0, "activity", 0, "Home", homeLocation.getX.toString, homeLocation.getY.toString, endTimeFirstHomeActivity.toString, ""),
+      PlansTableRow(personId, 0, "leg", 1, "", "", "", "", ""),
+      PlansTableRow(personId, 0, "activity", 2, "Work", workLocation.getX.toString, workLocation.getY.toString, endTimeWorkActivity.toString, ""),
+      PlansTableRow(personId, 0, "leg", 3, "", "", "", "", ""),
+      PlansTableRow(personId, 0, "activity", 4, "Home", homeLocation.getX.toString, homeLocation.getY.toString, Double.NegativeInfinity.toString, "")
+    )
+  }
 
 
   def writeVehicleTableToCSV(vehicleTable:List[VehicleTableRow], outputPath: String) = {
@@ -148,7 +179,7 @@ case class VehicleTableRow(vehicleId:String, vehicleTypeId:String, householdId:S
 case class PopulationTableRow(personId:String, age:Int, isFemale:Boolean, householdId:String, householdRank:Int, excludedModes:String, valueOfTime:Double) extends Row {
   override def toString: String = s"$personId,$age,$isFemale,$householdId,$householdRank,$excludedModes,$valueOfTime"
 }
-case class PlansTableRow(personId:String, planIndex:Int, planElementType:String, planElementIndex:Int, activityType:String, activityLocationX:Double, activityLocationY:Double, activityEndTime:Double, legMode:String) extends Row {
+case class PlansTableRow(personId:String, planIndex:Int, planElementType:String, planElementIndex:Int, activityType:String, activityLocationX: String, activityLocationY: String, activityEndTime: String, legMode:String) extends Row {
   override def toString: String = s"$personId,$planIndex,$planElementType,$planElementIndex,$activityType,$activityLocationX,$activityLocationY,$activityEndTime,$legMode"
 }
 case class HouseholdTableRow(householdId:String, incomeValue:Double, locationX:Double, locationY:Double) extends Row {
