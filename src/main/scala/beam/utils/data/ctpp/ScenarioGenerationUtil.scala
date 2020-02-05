@@ -18,15 +18,24 @@ object ScenarioGenerationUtil {
   def drawHouseholds(scenario: Scenario): Set[Household] = ???
   def generateOutputTables(household: Set[Household]): (List[VehicleTableRow],List[PopulationTableRow],List[PlansTableRow],List[HouseholdTableRow] ) = {
 
-    // discuss, Art, which tables available
+    // discuss, Art, which tables or methods available
 
 
     // create people
     // create plans
     // create
 
-    ???
+
+
+
+
+   ???
   }
+
+
+
+  // TODO: rajnikant should start implementing following
+  def getPlanRows(personId: String, homeLocation: Coord, homeDepartureTime: Double, workLocation: Coord, workDepartureTime:Double): List[PlansTableRow] = ???
 
   // TODO: rajnikant should start implementing following
   def writeVehicleTableToCSV(vehicleTable:List[VehicleTableRow], outputPath: String) = {
@@ -57,7 +66,6 @@ object ScenarioGenerationUtil {
     writer.close()
   }
 }
-
 
 case class TAZ(trazId: Id[TAZ],centerCoord:Coord)
 case class Scenario()
