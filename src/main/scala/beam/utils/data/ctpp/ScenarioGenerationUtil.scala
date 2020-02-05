@@ -1,7 +1,9 @@
 package beam.utils.data.ctpp
 
+import java.io.{BufferedWriter, File, PrintWriter}
+
+import org.matsim.core.utils.io.IOUtils
 import org.matsim.api.core.v01.{Coord, Id}
-import scala.collection.mutable
 
 object ScenarioGenerationUtil {
   def sampleHomeToWorkTAZ(scenario: Scenario):(TAZ,TAZ) = ???
@@ -26,21 +28,53 @@ object ScenarioGenerationUtil {
     ???
   }
 
-
   // TODO: rajnikant should start implementing following
-  def writeVehicleTableToCSV(vehicleTable:List[VehicleTableRow], outputPath: String) = ???
-  def writePopulationTableToCSV(populationTable:List[PopulationTableRow], outputPath: String) = ???
-  def writePlansTableToCSV(plansTable:List[PlansTableRow], outputPath: String) = ???
-  def writeHouseholdTableToCSV(householdTable:List[HouseholdTableRow], outputPath: String) = ???
+  def writeVehicleTableToCSV(vehicleTable:List[VehicleTableRow], outputPath: String) = {
+    val header = "vehicleId,vehicleTypeId,householdId"
+    writeRows(header, vehicleTable, outputPath)
+  }
+  def writePopulationTableToCSV(populationTable:List[PopulationTableRow], outputPath: String) = {
+    val header = "personId,age,isFemale,householdId,householdRank,excludedModes,valueOfTime"
+    writeRows(header, populationTable, outputPath)
+  }
+  def writePlansTableToCSV(plansTable:List[PlansTableRow], outputPath: String) = {
+    val header = "personId,planIndex,planElementType,planElementIndex,activityType,activityLocationX,activityLocationY,activityEndTime,legMode"
+    writeRows(header, plansTable, outputPath)
+  }
+  def writeHouseholdTableToCSV(householdTable:List[HouseholdTableRow], outputPath: String) = {
+    val header = "householdId,incomeValue,locationX,locationY"
+    writeRows(header, householdTable, outputPath)
+  }
+
+  def writeRows(header: String, rows: List[Row], outputPath: String): Unit = {
+    val writer = IOUtils.getBufferedWriter(outputPath)
+    writer.write(header)
+    writer.newLine()
+    rows.foreach(row => {
+      writer.write(row.toString)
+      writer.newLine()
+    })
+    writer.close()
+  }
 }
+
 
 case class TAZ(trazId: Id[TAZ],centerCoord:Coord)
 case class Scenario()
 case class Household(income:Double, householdSize: Int, numVehicles:Int)
 
-case class VehicleTableRow(vehicleId:String, vehicleTypeId:String, householdId:String)
-case class PopulationTableRow(personId:String, age:Int, isFemale:Boolean, householdId:String, householdRank:Int, excludedModes:String, valueOfTime:Double)
-case class PlansTableRow(personId:String, planIndex:Int, planElementType:String, planElementIndex:Int, activityType:String, activityLocationX:Double, activityLocationY:Double, activityEndTime:Double, legMode:String)
-case class HouseholdTableRow(householdId:String, incomeValue:Double, locationX:Double, locationY:Double)
+trait Row
+case class VehicleTableRow(vehicleId:String, vehicleTypeId:String, householdId:String) extends Row {
+  override def toString: String = s"$vehicleId,$vehicleTypeId,$householdId"
+}
+case class PopulationTableRow(personId:String, age:Int, isFemale:Boolean, householdId:String, householdRank:Int, excludedModes:String, valueOfTime:Double) extends Row {
+  override def toString: String = s"$personId,$age,$isFemale,$householdId,$householdRank,$excludedModes,$valueOfTime"
+}
+case class PlansTableRow(personId:String, planIndex:Int, planElementType:String, planElementIndex:Int, activityType:String, activityLocationX:Double, activityLocationY:Double, activityEndTime:Double, legMode:String) extends Row {
+  override def toString: String = s"$personId,$planIndex,$planElementType,$planElementIndex,$activityType,$activityLocationX,$activityLocationY,$activityEndTime,$legMode"
+}
+case class HouseholdTableRow(householdId:String, incomeValue:Double, locationX:Double, locationY:Double) extends Row {
+  override def toString: String = s"$householdId,$incomeValue,$locationX,$locationY"
+}
 
 
