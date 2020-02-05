@@ -76,9 +76,9 @@ object ScenarioGenerationUtil {
 
 
   // TODO: rajnikant should start implementing following
-  def getPlanRows(personId: String, homeLocation: Coord, homeDepartureTime: Double, workLocation: Coord, workDepartureTime:Double): List[PlansTableRow] = ???
+  def getPlanRows(personId: String, homeLocation: Coord, endTimeFirstHomeActivity: Double, workLocation: Coord, endTimeWorkActivity:Double): List[PlansTableRow] = ???
 
-  // TODO: rajnikant should start implementing following
+
   def writeVehicleTableToCSV(vehicleTable:List[VehicleTableRow], outputPath: String) = {
     val header = "vehicleId,vehicleTypeId,householdId"
     writeRows(header, vehicleTable, outputPath)
