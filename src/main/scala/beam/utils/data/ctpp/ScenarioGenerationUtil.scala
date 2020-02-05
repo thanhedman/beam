@@ -14,23 +14,33 @@ object ScenarioGenerationUtil {
 
 
   def drawHouseholds(scenario: Scenario): Set[Household] = ???
-  def generateOutputTables(household: Set[Household]): (Set[VehicleTable],Set[PopulationTable],Set[PlansTable],Set[HouseholdTable] ) = ???
+  def generateOutputTables(household: Set[Household]): (List[VehicleTableRow],List[PopulationTableRow],List[PlansTableRow],List[HouseholdTableRow] ) = {
+
+    // discuss, Art, which tables available
 
 
+    // create people
+    // create plans
+    // create
 
-  def writeVehicleTableToCSV(vehicleTable:Set[VehicleTable],outputPath: String) = ???
-  def writePopulationTableToCSV(populationTable:Set[PopulationTable],outputPath: String) = ???
-  def writePlansTableToCSV(plansTable:Set[PlansTable],outputPath: String) = ???
-  def writeHouseholdTableToCSV(householdTable:Set[HouseholdTable] ,outputPath: String) = ???
+    ???
+  }
+
+
+  // TODO: rajnikant should start implementing following
+  def writeVehicleTableToCSV(vehicleTable:List[VehicleTableRow], outputPath: String) = ???
+  def writePopulationTableToCSV(populationTable:List[PopulationTableRow], outputPath: String) = ???
+  def writePlansTableToCSV(plansTable:List[PlansTableRow], outputPath: String) = ???
+  def writeHouseholdTableToCSV(householdTable:List[HouseholdTableRow], outputPath: String) = ???
 }
 
 case class TAZ(trazId: Id[TAZ],centerCoord:Coord)
 case class Scenario()
 case class Household(income:Double, householdSize: Int, numVehicles:Int)
 
-case class VehicleTable(vehicleId:String,vehicleTypeId:String,householdId:String)
-case class PopulationTable(personId:String,age:Int,isFemale:Boolean,householdId:String,householdRank:Int,excludedModes:String,valueOfTime:Double)
-case class PlansTable(personId:String,planIndex:Int,planElementType:String,planElementIndex:Int,activityType:String,activityLocationX:Double,activityLocationY:Double,activityEndTime:Double,legMode:String)
-case class HouseholdTable(householdId:String,incomeValue:Double,locationX:Double,locationY:Double)
+case class VehicleTableRow(vehicleId:String, vehicleTypeId:String, householdId:String)
+case class PopulationTableRow(personId:String, age:Int, isFemale:Boolean, householdId:String, householdRank:Int, excludedModes:String, valueOfTime:Double)
+case class PlansTableRow(personId:String, planIndex:Int, planElementType:String, planElementIndex:Int, activityType:String, activityLocationX:Double, activityLocationY:Double, activityEndTime:Double, legMode:String)
+case class HouseholdTableRow(householdId:String, incomeValue:Double, locationX:Double, locationY:Double)
 
 
