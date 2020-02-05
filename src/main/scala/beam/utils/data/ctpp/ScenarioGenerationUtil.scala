@@ -2,8 +2,12 @@ package beam.utils.data.ctpp
 
 import java.io.{BufferedWriter, File, PrintWriter}
 
+import beam.utils.data.ctpp.ScenarioGenerationUtil.drawEndTimeOfHomeActivityInSec
 import org.matsim.core.utils.io.IOUtils
 import org.matsim.api.core.v01.{Coord, Id}
+
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
 
 object ScenarioGenerationUtil {
 
@@ -37,17 +41,17 @@ object ScenarioGenerationUtil {
 
   val random = scala.util.Random
 
-// TODO: Rashid -> create tasks for converting above data to probabilities
 
 
-  def drawGenderSize(scenario: Scenario, taz:TAZ): Gender  = {
+  def drawGender(scenario: Scenario, taz:TAZ): Gender  = {
     val frequencies = getGender(scenario, taz)
     getFrequency[Gender](frequencies)
   }
 
-  def drawIncomeSize(scenario: Scenario, taz:TAZ): Range = {
+  def drawIncome(scenario: Scenario, taz:TAZ): Int = {
     val frequencies=getIncome(scenario, taz)
-    getFrequency[Range](frequencies)
+    val range=getFrequency[Range](frequencies)
+    range.start + random.nextInt(range.end-range.start)
   }
 
   def drawWorkTAZs(scenario: Scenario, taz:TAZ): TAZ = {
@@ -65,10 +69,16 @@ object ScenarioGenerationUtil {
     getFrequency[Int](frequencies)
   }
 
-  def drawAgeSize(scenario: Scenario, taz:TAZ): Range = {
+  def drawAge(scenario: Scenario, taz:TAZ): Int = {
     val frequencies=getAge(scenario, taz)
-    getFrequency[Range](frequencies)
+    val range=getFrequency[Range](frequencies)
+    range.start + random.nextInt(range.end-range.start)
   }
+
+// TODO: Rajnikant implement
+  def drawEndTimeOfHomeActivityInSec(scenario: Scenario,homeTAZ:TAZ): Int = ???
+  def drawTravelTimeToWorkInSec(scenario: Scenario,homeTAZ:TAZ):Int = ???
+  def drawWeeklyWorkHoursInSec(scenario: Scenario,homeTAZ:TAZ):Int = ???
 
   def getFrequency[A](frequencies: Map[A, Int]): A = {
     val total = frequencies.values.sum.toDouble
@@ -86,36 +96,91 @@ object ScenarioGenerationUtil {
     frequencies.keys.last
   }
 
-  def drawHousehold(scenario: Scenario): Household = ???
-  def drawHouseholds(scenario: Scenario): Set[Household] = ???
+  //def drawHousehold(scenario: Scenario): Household = ???
+  //def drawHouseholds(scenario: Scenario): Set[Household] = ???
 
 
 
-  def sampleHomeToWorkTAZ(scenario: Scenario):(TAZ,TAZ) = ???
+  //def sampleHomeToWorkTAZ(scenario: Scenario):(TAZ,TAZ) = ???
   def getAllTAZs(scenario: Scenario):Set[TAZ] = ???
-  def sampleFromTAZ(taz: TAZ):Coord = ???
+  //def sampleFromTAZ(taz: TAZ):Coord = ???
   //def drawFirstHomeActEndTime():Double = ???
   //def drawWorkActDuration(firstHomeActEndTime:Double): Double = ???
 
-  def drawHousehold(scenario: Scenario, taz:TAZ): Household = ???
+  //def drawHousehold(scenario: Scenario, taz:TAZ): Household = ???
 
 
 
+  def createHousehold(householdId: String,scenario: Scenario, taz: TAZ, householdTableRows: mutable.ListBuffer[HouseholdTableRow], homeLocation: Coord) = {
+    val income=drawIncome(scenario,taz)
+    householdTableRows+=HouseholdTableRow(householdId, income, homeLocation.getX, homeLocation.getY)
+  }
+
+  def createVehicles(householdId: String, scenario: Scenario, taz: TAZ, vehicleTableRows: ListBuffer[VehicleTableRow]) = {
+    val numberOfVehicles=drawNumberOfVehicles(scenario,taz)
+
+    for (i <- 1 to numberOfVehicles){
+      vehicleTableRows+=VehicleTableRow(i.toString + "-" + householdId, "CAR-TODO-GENERALIZE", householdId)
+    }
+  }
+
+  // TODO: check with Zach, if derive from just household income or more?
+  def getValueOfTime(scenario: Scenario, taz:TAZ): Double ={
+    drawIncome(scenario,taz)
+  }
 
 
 
+  def createPopulationAndPlans(householdId: String, scenario: Scenario, taz: TAZ, populationTableRows: ListBuffer[PopulationTableRow], plansTableRows: ListBuffer[PlansTableRow],houseHoldSize:Int, homeLocation:Coord) = {
 
-  def generateOutputTables(household: Set[Household]): (List[VehicleTableRow],List[PopulationTableRow],List[PlansTableRow],List[HouseholdTableRow] ) = {
+    for (i <- 1 to houseHoldSize) {
+      val personId=i.toString + "-" + householdId
+      populationTableRows+=PopulationTableRow(personId, drawAge(scenario,taz), drawGender(scenario,taz).isInstanceOf[Gender.Female], householdId, i, "\"\"", getValueOfTime(scenario,taz))
 
+      val endTimeOfHomeActivity=drawEndTimeOfHomeActivityInSec(scenario,taz)
+      val endTimeWorkActivity=endTimeOfHomeActivity+drawTravelTimeToWorkInSec(scenario,taz)+drawWeeklyWorkHoursInSec(scenario,taz)/5
+      plansTableRows++=getPlanRows(personId,homeLocation,endTimeOfHomeActivity,drawCoordinates(scenario,taz,1).head,endTimeWorkActivity)
+    }
+  }
+
+  // TODO - refactor: as we are passing scenario everywhere, probably better to make all methods member of scneario object
+  def generateOutputTables(scenario: Scenario): (List[VehicleTableRow],List[PopulationTableRow],List[PlansTableRow],List[HouseholdTableRow] ) = {
+    val vehicleTableRows=mutable.ListBuffer[VehicleTableRow]()
+    val populationTableRows=mutable.ListBuffer[PopulationTableRow]()
+    val plansTableRows=mutable.ListBuffer[PlansTableRow]()
+    val householdTableRows=mutable.ListBuffer[HouseholdTableRow]()
+
+
+
+    var actualPopulationSize=0
+    var controlPopulationSize=0
+    getAllTAZs(scenario).foreach{ taz=>
+      val numberOfHouseHoldsInTAZ=numberOfHouseholds(scenario,taz)
+
+
+      for (i <- 1 to numberOfHouseHoldsInTAZ) {
+        val houseHoldSize=drawHouseHoldSize(scenario,taz)
+        actualPopulationSize+=houseHoldSize
+        val homeLocation=drawCoordinates(scenario,taz,1).head
+        val householdId=i.toString
+        createHousehold(householdId,scenario,taz, householdTableRows,homeLocation)
+
+        createVehicles(householdId,scenario,taz,vehicleTableRows)
+
+
+
+          createPopulationAndPlans(householdId,scenario,taz, populationTableRows,plansTableRows,houseHoldSize,homeLocation)
+      }
+
+
+      controlPopulationSize+=numberOfPeopleInTAZ(scenario,taz)
+      // TODO: log difference between people
+
+    }
     // discuss, Art, which tables or methods available
 
 
-    // create people
-    // create plans
-    // create
-
-
-
+    println(s"actualPopulationSize: $actualPopulationSize, controlPopulationSize: $controlPopulationSize")
 
 
    ???
@@ -188,6 +253,6 @@ case class HouseholdTableRow(householdId:String, incomeValue:Double, locationX:D
 
 sealed trait Gender
 object Gender{
-  case object Male extends Gender
-  case object Female extends Gender
+  case class Male() extends Gender
+  case class Female() extends Gender
 }
