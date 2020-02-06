@@ -2,6 +2,7 @@ package beam.utils.data.ctpp
 
 import java.io.{BufferedWriter, File, PrintWriter}
 
+import beam.sim.population.PopulationAdjustment
 import org.matsim.core.utils.io.IOUtils
 import org.matsim.api.core.v01.{Coord, Id}
 
@@ -9,6 +10,12 @@ import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
 object ScenarioGenerationUtil {
+
+  // use synthpop for hh and pop generation + home location
+  // use ctpp work location
+  // use NHTS for act durations
+
+
 
   // TODO: Art will implement
 
@@ -134,7 +141,7 @@ object ScenarioGenerationUtil {
 
   // TODO: check with Zach, if derive from just household income or more?
   def getValueOfTime(scenario: Scenario, taz:TAZ): Double ={
-    drawIncome(scenario,taz)
+    PopulationAdjustment.IncomeToValueOfTime(drawIncome(scenario,taz)).get
   }
 
 
