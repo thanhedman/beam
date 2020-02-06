@@ -2,7 +2,6 @@ package beam.utils.data.ctpp
 
 import java.io.{BufferedWriter, File, PrintWriter}
 
-import beam.utils.data.ctpp.ScenarioGenerationUtil.drawEndTimeOfHomeActivityInSec
 import org.matsim.core.utils.io.IOUtils
 import org.matsim.api.core.v01.{Coord, Id}
 
@@ -29,10 +28,8 @@ object ScenarioGenerationUtil {
   def getTravelTimeToWork(scenario: Scenario,homeTAZ:TAZ):Map[Range,Int] = ???
   def getWeeklyWorkHours(scenario: Scenario,homeTAZ:TAZ):Map[Range,Int] = ???
 
-
  //TODO: Evgeniy
   def drawCoordinates(scenario: Scenario,taz:TAZ,sampleSize:Int):Set[Coord]= ???
-
 
   // TODO: Zach/Colin
   // TODO: define file format, and create readers [RASHID]
@@ -40,8 +37,6 @@ object ScenarioGenerationUtil {
   def drawWorkActDuration(firstHomeActEndTime:Double): Double = ???
 
   val random = scala.util.Random
-
-
 
   def drawGender(scenario: Scenario, taz:TAZ): Gender  = {
     val frequencies = getGender(scenario, taz)
@@ -75,10 +70,23 @@ object ScenarioGenerationUtil {
     range.start + random.nextInt(range.end-range.start)
   }
 
-// TODO: Rajnikant implement
-  def drawEndTimeOfHomeActivityInSec(scenario: Scenario,homeTAZ:TAZ): Int = ???
-  def drawTravelTimeToWorkInSec(scenario: Scenario,homeTAZ:TAZ):Int = ???
-  def drawWeeklyWorkHoursInSec(scenario: Scenario,homeTAZ:TAZ):Int = ???
+  def drawEndTimeOfHomeActivityInSec(scenario: Scenario,homeTAZ:TAZ): Int = {
+    val frequencies=getEndTimeOfHomeActivity(scenario, homeTAZ)
+    val range=getFrequency[Range](frequencies)
+    range.start + random.nextInt(range.end-range.start)
+  }
+
+  def drawTravelTimeToWorkInSec(scenario: Scenario,homeTAZ:TAZ):Int = {
+    val frequencies=getTravelTimeToWork(scenario, homeTAZ)
+    val range=getFrequency[Range](frequencies)
+    range.start + random.nextInt(range.end-range.start)
+  }
+
+  def drawWeeklyWorkHoursInSec(scenario: Scenario,homeTAZ:TAZ):Int = {
+    val frequencies=getWeeklyWorkHours(scenario, homeTAZ)
+    val range=getFrequency[Range](frequencies)
+    range.start + random.nextInt(range.end-range.start)
+  }
 
   def getFrequency[A](frequencies: Map[A, Int]): A = {
     val total = frequencies.values.sum.toDouble
@@ -226,12 +234,6 @@ object ScenarioGenerationUtil {
     writer.close()
   }
 }
-
-
-
-
-
-
 
 case class TAZ(trazId: Id[TAZ],centerCoord:Coord)
 case class Scenario()
