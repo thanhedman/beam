@@ -48,10 +48,10 @@ class ExponentialLoggerWrapperImpl(name: String) extends LoggerWrapper {
     // while keeping some unique info in the message. just put that info at the end
     val first20Characters = messageTemplate.substring(0, 19)
     val newValue = messages.merge(first20Characters, 1, (counter, incValue) => counter + incValue)
-    if (isNumberPowerOfTwo(newValue)) {
+    //if (isNumberPowerOfTwo(newValue)) {
       val newMessage = "[" + newValue + "] " + messageTemplate
       func(newMessage)
-    }
+    //}
   }
 
   override def reset(): Unit = messages.clear()

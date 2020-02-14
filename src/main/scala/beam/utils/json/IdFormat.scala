@@ -16,3 +16,5 @@ class IdFormat[T](implicit val ct: ClassTag[T]) extends Encoder[Id[T]] with Deco
     }
   }
 }
+
+

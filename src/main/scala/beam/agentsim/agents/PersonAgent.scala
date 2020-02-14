@@ -262,6 +262,7 @@ class PersonAgent(
     bodyType
   )
   body.manager = Some(self)
+  logger.error("Adding initial vehicle: " + body.uid + " OR vehicle id " + body.id)
   beamVehicles.put(body.id, ActualVehicle(body))
 
   val attributes: AttributesOfIndividual =
@@ -437,10 +438,15 @@ class PersonAgent(
           // if we still have a BEV/PHEV that is connected to a charging point,
           // we assume that they will charge until the end of the simulation and throwing events accordingly
           beamVehicles.foreach(idVehicleOrTokenTuple => {
+            logError(s"Getting from beam vehicle using ID of " + idVehicleOrTokenTuple._1)
             beamScenario.privateVehicles
               .get(idVehicleOrTokenTuple._1)
               .foreach(beamvehicle => {
+                logError(s"Retrieved vehicle with uid " + beamvehicle.uid + " and id " + beamvehicle.id + " using tupled id " + idVehicleOrTokenTuple._1 + " Full beamvehicles list is " + beamVehicles.values.toList)
                 if ((beamvehicle.isPHEV | beamvehicle.isBEV) & beamvehicle.isConnectedToChargingPoint()) {
+                  if(!beamvehicle.isAtStall){
+                    logError(s"BeamVehicle is said to be connected, but not at stall - last used stall = ${beamvehicle.lastUsedStall}")
+                  }
                   handleEndCharging(Time.parseTime(beamScenario.beamConfig.beam.agentsim.endTime).toInt, beamvehicle)
                 }
               })
@@ -685,6 +691,7 @@ class PersonAgent(
           if (!currentBeamVehicle.mustBeDrivenHome) {
             // Is a shared vehicle. Give it up.
             currentBeamVehicle.manager.get ! ReleaseVehicle(currentBeamVehicle)
+            logger.error("Removing head vehicle" + beamVehicles.get(data.currentVehicle.head).map(_.id))
             beamVehicles -= data.currentVehicle.head
           }
         }
@@ -712,6 +719,7 @@ class PersonAgent(
 
   when(TryingToBoardVehicle) {
     case Event(Boarded(vehicle), basePersonData: BasePersonData) =>
+      logError("Boarding vehicle: " + vehicle.uid + " OR vehicle id " + vehicle.id)
       beamVehicles.put(vehicle.id, ActualVehicle(vehicle))
       goto(ProcessingNextLegOrStartActivity)
     case Event(NotAvailable, basePersonData: BasePersonData) =>
@@ -999,6 +1007,7 @@ class PersonAgent(
               case Some(personalVehId) =>
                 val personalVeh = beamVehicles(personalVehId).asInstanceOf[ActualVehicle].vehicle
                 if (activity.getType.equals("Home")) {
+                  logError("Removing home vehicle" + personalVeh.id)
                   beamVehicles -= personalVeh.id
                   personalVeh.manager.get ! ReleaseVehicle(personalVeh)
                   None

@@ -31,7 +31,8 @@ class SfLightRouterSpec extends AbstractSfLightSpec("SfLightRouterSpec") with In
             Id.create("BODY-TYPE-DEFAULT", classOf[BeamVehicleType]),
             new SpaceTime(new Coord(origin.getX, origin.getY), time),
             Modes.BeamMode.WALK,
-            asDriver = true
+            asDriver = true,
+            None
           )
         )
       )

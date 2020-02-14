@@ -255,6 +255,7 @@ class RideHailAgent(
 
   when(Uninitialized) {
     case Event(TriggerWithId(InitializeTrigger(tick), triggerId), data) =>
+      logError("Initializing RH vehicle: " + vehicle.uid + " OR vehicle id " + vehicle.id)
       beamVehicles.put(vehicle.id, ActualVehicle(vehicle))
       vehicle.becomeDriver(self)
       vehicle.manager = Some(rideHailManager)
@@ -307,7 +308,8 @@ class RideHailAgent(
           currentBeamVehicle.beamVehicleType.id,
           SpaceTime(currentLocationUTM, _currentTick.get),
           CAR,
-          asDriver = true
+          asDriver = true,
+          Some(currentBeamVehicle.uid)
         )
       val veh2StallRequest = RoutingRequest(
         currentLocationUTM,

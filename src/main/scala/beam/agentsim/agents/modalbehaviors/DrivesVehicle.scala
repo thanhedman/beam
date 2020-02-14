@@ -585,7 +585,7 @@ trait DrivesVehicle[T <: DrivingData] extends BeamAgent[T] with Stash {
         if data.legStartsAt.isEmpty || tick == data.legStartsAt.get =>
       updateLatestObservedTick(tick)
 //      log.debug("state(DrivesVehicle.WaitingToDrive): {}", ev)
-      log.debug("state(DrivesVehicle.WaitingToDrive): StartLegTrigger({},{}) for driver {}", tick, newLeg, id)
+      log.error("state(DrivesVehicle.WaitingToDrive): StartLegTrigger({},{}) for driver {}", tick, newLeg, id)
 
       if (data.currentVehicle.isEmpty) {
         stop(Failure("person received StartLegTrigger for leg {} but has an empty data.currentVehicle", newLeg))
@@ -600,7 +600,8 @@ trait DrivesVehicle[T <: DrivingData] extends BeamAgent[T] with Stash {
             currentBeamVehicle.stall.foreach { theStall =>
               parkingManager ! ReleaseParkingStall(theStall.parkingZoneId)
             }
-            currentBeamVehicle.unsetParkingStall()
+            logError(s"Unsetting parking stall because waiting to drive.")// Printing stack trace: ${(new Exception()).getStackTrace().map(_.toString).mkString("\n")}")
+            currentBeamVehicle.unsetParkingStall(true)
           case None =>
         }
         val triggerToSchedule: Vector[ScheduleTrigger] = data.passengerSchedule
@@ -826,6 +827,7 @@ trait DrivesVehicle[T <: DrivingData] extends BeamAgent[T] with Stash {
     case Event(TriggerWithId(EndRefuelSessionTrigger(tick, _, _, vehicle), triggerId), _) =>
       if (vehicle.isConnectedToChargingPoint()) {
         handleEndCharging(tick, vehicle)
+        logError("unsetting parking stall because end refueld session")
         vehicle.unsetParkingStall()
       }
       stay() replying CompletionNotice(triggerId)
@@ -851,7 +853,7 @@ trait DrivesVehicle[T <: DrivingData] extends BeamAgent[T] with Stash {
   }
 
   def handleStartCharging(currentTick: Int, vehicle: BeamVehicle) = {
-    log.debug("Vehicle {} connects to charger @ stall {}", vehicle.id, vehicle.stall.get)
+    logError(s"Vehicle ${vehicle.id} connects to charger @ stall ${vehicle.stall.get}")
     vehicle.connectToChargingPoint(currentTick)
     eventsManager.processEvent(
       new ChargingPlugInEvent(
@@ -871,49 +873,64 @@ trait DrivesVehicle[T <: DrivingData] extends BeamAgent[T] with Stash {
     * @param currentTick
     * @param vehicle
     */
-  def handleEndCharging(currentTick: Int, vehicle: BeamVehicle) = {
+  def handleEndCharging(currentTick: Int, vehicle1: BeamVehicle) = {
 
-    val (chargingDuration, energyInJoules) =
-      vehicle.refuelingSessionDurationAndEnergyInJoules(Some(currentTick - vehicle.getChargerConnectedTick()))
+    val vehicle = vehicle1.getCopy
+    try {
+      vehicle.setEndingCharging(true)
+      val (chargingDuration, energyInJoules) =
+        vehicle.refuelingSessionDurationAndEnergyInJoules(Some(currentTick - vehicle.getChargerConnectedTick()))
 
-    log.debug("Ending refuel session for {} in tick {}. Provided {} J.", vehicle.id, currentTick, energyInJoules)
-    vehicle.addFuel(energyInJoules)
-    eventsManager.processEvent(
-      new RefuelSessionEvent(
-        currentTick,
-        vehicle.stall.get.copy(locationUTM = geo.utm2Wgs(vehicle.stall.get.locationUTM)),
-        energyInJoules,
-        vehicle.primaryFuelLevelInJoules - energyInJoules,
-        chargingDuration,
-        vehicle.id,
-        vehicle.beamVehicleType
+      logError("1 - " + vehicle.uid.toString + " OR vehicle id " + vehicle.id + " - handle end charging vehicle state " + vehicle.getState + s" and stacktrace = ${(new Exception()).getStackTrace().map(_.toString).mkString("\n")}")
+      log.debug("Ending refuel session for {} in tick {}. Provided {} J.", vehicle.id, currentTick, energyInJoules)
+      vehicle.addFuel(energyInJoules)
+      eventsManager.processEvent(
+        new RefuelSessionEvent(
+          currentTick,
+          vehicle.stall.get.copy(locationUTM = geo.utm2Wgs(vehicle.stall.get.locationUTM)),
+          energyInJoules,
+          vehicle.primaryFuelLevelInJoules - energyInJoules,
+          chargingDuration,
+          vehicle.id,
+          vehicle.beamVehicleType
+        )
       )
-    )
 
-    vehicle.disconnectFromChargingPoint()
-    log.debug(
-      "Vehicle {} disconnected from charger @ stall {}",
-      vehicle.id,
-      vehicle.stall.get
-    )
-    eventsManager.processEvent(
-      new ChargingPlugOutEvent(
-        currentTick,
+      //logError("2 - " + vehicle.uid.toString + " - handle end charging vehicle state " + vehicle.getState)
+      vehicle.disconnectFromChargingPoint()
+      logError("3 - " + vehicle.uid.toString + " OR vehicle id " + vehicle.id + " - handle end charging vehicle state " + vehicle.getState)
+      log.debug(
+        "Vehicle {} disconnected from charger @ stall {}",
+        vehicle.id,
         vehicle.stall.get
-          .copy(locationUTM = geo.utm2Wgs(vehicle.stall.get.locationUTM)),
-        vehicle.id,
-        vehicle.primaryFuelLevelInJoules,
-        Some(vehicle.secondaryFuelLevelInJoules)
       )
-    )
-    vehicle.stall match {
-      case Some(stall) =>
-        parkingManager ! ReleaseParkingStall(stall.parkingZoneId)
-        vehicle.unsetParkingStall()
-      case None =>
-        log.error("Vehicle has no stall while ending charging event")
+      logError("4 - " + vehicle.uid.toString + " OR vehicle id " + vehicle.id + " - handle end charging vehicle state " + vehicle.getState)
+      eventsManager.processEvent(
+        new ChargingPlugOutEvent(
+          currentTick,
+          vehicle.stall.get
+            .copy(locationUTM = geo.utm2Wgs(vehicle.stall.get.locationUTM)),
+          vehicle.id,
+          vehicle.primaryFuelLevelInJoules,
+          Some(vehicle.secondaryFuelLevelInJoules)
+        )
+      )
+      logError("5 - " + vehicle.uid.toString + " OR vehicle id " + vehicle.id + " - handle end charging vehicle state " + vehicle.getState)
+      vehicle.stall match {
+        case Some(stall) =>
+          parkingManager ! ReleaseParkingStall(stall.parkingZoneId)
+          logError("Unsetting parking because in end charging")
+          vehicle.unsetParkingStall()
+        case None =>
+          log.error("Vehicle has no stall while ending charging event")
+      }
+    } catch {
+      case x: Throwable =>
+        logError(s"AAARGH $x Vehicle = ${vehicle.getState}")
+        throw x
+    } finally {
+      vehicle.setEndingCharging(false)
     }
-
   }
 
 }

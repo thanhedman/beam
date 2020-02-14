@@ -30,6 +30,8 @@
     <Logger name="beam.router.BeamRouter" level="ERROR" />
     <Logger name="beam.agentsim.agents.TransitDriverAgent" level="ERROR" />
     <Logger name="beam.router.r5.R5RoutingWorker" level="INFO" />
+    <Logger name="beam.sim.vehiclesharing.FixedNonReservingFleetManager" level="DEBUG" />
+    <Logger name="beam.sim.vehiclesharing.InexhaustibleReservingFleetManager" level="DEBUG" />
 
     <Logger name="org.apache.parquet" level="WARN" />
     <Logger name="org.reflections" level="ERROR" />

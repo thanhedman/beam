@@ -272,7 +272,8 @@ case class CAVSchedule(schedule: List[MobilityRequest], cav: BeamVehicle, occupa
             cav.beamVehicleType.id,
             origin,
             CAV,
-            asDriver = true
+            asDriver = true,
+            Some(cav.uid)
           )
           val origLink = beamServices.geo.getNearestR5Edge(
             transportNetwork.streetLayer,
@@ -309,7 +310,8 @@ case class CAVSchedule(schedule: List[MobilityRequest], cav: BeamVehicle, occupa
                     cav.beamVehicleType.id,
                     origin,
                     CAV,
-                    asDriver = true
+                    asDriver = true,
+                    Some(cav.uid)
                   )
                 )
               )

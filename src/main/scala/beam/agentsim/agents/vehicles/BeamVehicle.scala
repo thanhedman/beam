@@ -44,9 +44,33 @@ class BeamVehicle(
   val beamVehicleType: BeamVehicleType,
   val randomSeed: Int = 0
 ) extends ExponentialLazyLogging {
+  val uid = java.util.UUID.randomUUID()
+  def getCopy = {
+    /*val copiedVehicle = new BeamVehicle(this.id, this.powerTrain, this.beamVehicleType, this.randomSeed)
+    copiedVehicle.manager = this.manager
+    copiedVehicle.turnedOffWaitingToDrive = this.turnedOffWaitingToDrive
+    copiedVehicle.isEndingCharging = this.isEndingCharging
+    copiedVehicle.primaryFuelLevelInJoules = this.primaryFuelLevelInJoules
+    copiedVehicle.secondaryFuelLevelInJoules = this.secondaryFuelLevelInJoules
+    copiedVehicle.rand = this.rand
+    copiedVehicle.spaceTime = this.spaceTime
+    copiedVehicle.mustBeDrivenHome = this.mustBeDrivenHome
+    copiedVehicle.driver = this.driver
+    copiedVehicle.reservedStall = this.reservedStall
+    copiedVehicle.internalStall = this.internalStall
+    copiedVehicle.lastUsedStall = this.lastUsedStall
+    copiedVehicle.connectedToCharger = this.connectedToCharger
+    copiedVehicle.chargerConnectedTick = this.chargerConnectedTick
+    copiedVehicle*/
+    this
+    //TODO: Get hash identity - and check that constantly...
+  }
   var manager: Option[ActorRef] = None
 
-  val rand: Random = new Random(randomSeed)
+  var turnedOffWaitingToDrive = false
+  var isEndingCharging = false
+
+  var rand: Random = new Random(randomSeed)
 
   var spaceTime: SpaceTime = _
 
@@ -64,7 +88,9 @@ class BeamVehicle(
   var driver: Option[ActorRef] = None
 
   var reservedStall: Option[ParkingStall] = None
-  var stall: Option[ParkingStall] = None
+  private var internalStall: Option[ParkingStall] = None
+  def stall: Option[ParkingStall] = internalStall.map(s => ParkingStall(s.tazId, s.parkingZoneId,
+    s.locationUTM, s.costInDollars, s.chargingPointType, s.pricingModel, s.parkingType))
   var lastUsedStall: Option[ParkingStall] = None
 
   private var connectedToCharger: Boolean = false
@@ -104,12 +130,16 @@ class BeamVehicle(
   }
 
   def useParkingStall(newStall: ParkingStall): Unit = {
-    stall = Some(newStall)
+    internalStall = Some(newStall)
     lastUsedStall = Some(newStall)
   }
 
-  def unsetParkingStall(): Unit = {
-    stall = None
+  def unsetParkingStall(mark: Boolean = false): Unit = {
+    //if(isEndingCharging) logger.error(s"Unsetting parking stall while still ending charging! Current state: ${getState} and stacktrace = ${(new Exception()).getStackTrace().map(_.toString).mkString("\n")}")
+    //if(isConnectedToChargingPoint()) logger.error(s"Unsetting parking stall while still connected to charger! Current state: ${getState} and stacktrace = ${(new Exception()).getStackTrace().map(_.toString).mkString("\n")}")
+    logger.error(s"Logging overkill....but that's where I'm at! Current state: ${getState} and stacktrace = ${(new Exception()).getStackTrace().map(_.toString).mkString("\n")}")
+    internalStall = None
+    turnedOffWaitingToDrive = mark
   }
 
   /**
@@ -117,6 +147,9 @@ class BeamVehicle(
     * @param startTick
     */
   def connectToChargingPoint(startTick: Long): Unit = {
+    if(stall.isEmpty || turnedOffWaitingToDrive){
+      logger.error(s"Connected to charging point, yet there is no stall or turned off by waiting to drive! Current state: ${getState}")
+    }
     if (beamVehicleType.primaryFuelType == Electricity || beamVehicleType.secondaryFuelType == Electricity) {
       connectedToCharger = true
       chargerConnectedTick = Some(startTick)
@@ -127,8 +160,17 @@ class BeamVehicle(
   }
 
   def disconnectFromChargingPoint(): Unit = {
+    if(turnedOffWaitingToDrive) logger.error("Disconnecting from charging point after unsetting stall from turnedOffWaitingToDrive")
     connectedToCharger = false
     chargerConnectedTick = None
+  }
+
+  def setEndingCharging(state: Boolean) = {
+    isEndingCharging = state
+  }
+
+  def isAtStall(): Boolean = {
+    stall.isDefined
   }
 
   def isConnectedToChargingPoint(): Boolean = {
@@ -265,7 +307,7 @@ class BeamVehicle(
       case Body =>
         WALK
     }
-    StreetVehicle(id, beamVehicleType.id, spaceTime, mode, true)
+    StreetVehicle(id, beamVehicleType.id, spaceTime, mode, true, Some(this.uid))
   }
 
   def isCAV: Boolean = beamVehicleType.automationLevel == 5

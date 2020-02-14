@@ -17,6 +17,7 @@ import beam.agentsim.infrastructure.{ParkingInquiry, ParkingInquiryResponse}
 import beam.agentsim.scheduler.BeamAgentScheduler.CompletionNotice
 import beam.agentsim.scheduler.Trigger.TriggerWithId
 import org.matsim.api.core.v01.Id
+import beam.utils.logging.ExponentialLazyLogging
 
 import scala.util.Random
 
@@ -25,7 +26,8 @@ private[vehiclesharing] class InexhaustibleReservingFleetManager(
   vehicleType: BeamVehicleType,
   randomSeed: Long
 ) extends Actor
-    with ActorLogging {
+    with ActorLogging
+    with ExponentialLazyLogging {
 
   private implicit val timeout: Timeout = Timeout(50000, TimeUnit.SECONDS)
   private val rand: Random = new Random(randomSeed)
@@ -48,13 +50,17 @@ private[vehiclesharing] class InexhaustibleReservingFleetManager(
       vehicle.manager = Some(self)
       vehicle.spaceTime = whenWhere
       vehicle.becomeDriver(sender)
+      logger.error("Inexhaustible Reserving Fleet received Mobility Inquiry and returning vehicle: " + vehicle.id)
 
       // Park it and forward it to the customer
       (parkingManager ? parkingInquiry(whenWhere))
         .collect {
-          case ParkingInquiryResponse(stall, _) =>
+          case ParkingInquiryResponse(stall, _) => {
             vehicle.useParkingStall(stall)
-            MobilityStatusResponse(Vector(ActualVehicle(vehicle)))
+            val y  = MobilityStatusResponse(Vector(ActualVehicle(vehicle)))
+            logger.error("Mobility status sending from inexhaustible reserving fleet manager " + y.streetVehicle.map(_.id))
+            y
+          }
         } pipeTo sender
 
     case ReleaseVehicle(_) =>

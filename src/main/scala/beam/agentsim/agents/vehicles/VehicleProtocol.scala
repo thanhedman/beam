@@ -14,7 +14,14 @@ object VehicleProtocol {
     vehicleTypeId: Id[BeamVehicleType],
     locationUTM: SpaceTime,
     mode: BeamMode,
-    asDriver: Boolean
-  )
+    asDriver: Boolean,
+    vehicleUid: Option[java.util.UUID]
+  )/* {
+    var vehicle: Option[BeamVehicle] = None
+    def setVehicle(vehicle1:BeamVehicle) = {
+      this.vehicle = Some(vehicle1)
+      this
+    }
+  }*/
 
 }

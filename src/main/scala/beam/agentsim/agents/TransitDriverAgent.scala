@@ -124,6 +124,7 @@ class TransitDriverAgent(
   when(Uninitialized) {
     case Event(TriggerWithId(InitializeTrigger(tick), triggerId), data: TransitDriverData) =>
       logDebug(s" $id has been initialized, going to Waiting state")
+      logError("Transit putting vehicle" + vehicle.uid + " OR vehicle id " + vehicle.id)
       beamVehicles.put(vehicle.id, ActualVehicle(vehicle))
       vehicle.becomeDriver(self)
       eventsManager.processEvent(

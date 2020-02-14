@@ -171,6 +171,7 @@ object HouseholdActor {
           case (category, vs) =>
             val fleetManager =
               context.actorOf(Props(new HouseholdFleetManager(parkingManager, vs, homeCoord)), category.toString)
+            log.error("Household with Id '" + household.getId.toString + "' created household fleet manager '" + category.toString + "'")
             context.watch(fleetManager)
             schedulerRef ! ScheduleTrigger(InitializeTrigger(0), fleetManager)
             fleetManager

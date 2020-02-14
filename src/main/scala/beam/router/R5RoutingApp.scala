@@ -106,7 +106,8 @@ object R5RoutingApp extends BeamHelper {
       Id.create("BODY-TYPE-DEFAULT", classOf[BeamVehicleType]),
       new SpaceTime(startUTM, time = departureTime),
       CAR,
-      asDriver = true
+      asDriver = true,
+      None
     )
     val routingRequest = RoutingRequest(
       originUTM = startUTM,

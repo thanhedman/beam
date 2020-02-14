@@ -28,6 +28,7 @@ import com.vividsolutions.jts.index.quadtree.Quadtree
 import org.matsim.api.core.v01.{Coord, Id}
 import org.matsim.core.utils.geometry.CoordUtils
 
+import beam.utils.logging.ExponentialLazyLogging
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
@@ -44,6 +45,7 @@ private[vehiclesharing] class FixedNonReservingFleetManager(
   val repositionAlgorithmType: Option[RepositionAlgorithmType] = None
 ) extends Actor
     with ActorLogging
+    with ExponentialLazyLogging
     with Stash
     with RepositionManager {
 
@@ -91,9 +93,11 @@ private[vehiclesharing] class FixedNonReservingFleetManager(
 
       val nearbyVehicles = availableVehiclesIndex.query(boundingBox).asScala.toVector.asInstanceOf[Vector[BeamVehicle]]
       nearbyVehicles.sortBy(veh => CoordUtils.calcEuclideanDistance(veh.spaceTime.loc, whenWhere.loc))
-      sender ! MobilityStatusResponse(nearbyVehicles.take(5).map { vehicle =>
+      val y = MobilityStatusResponse(nearbyVehicles.take(5).map { vehicle =>
         Token(vehicle.id, self, vehicle.toStreetVehicle)
       })
+      logger.error("Mobility status sending from fixed non reserving: " + y.streetVehicle.map(_.id))
+      sender ! y
       collectData(whenWhere.time, whenWhere.loc, RepositionManager.inquiry)
 
     case TryToBoardVehicle(token, who) =>

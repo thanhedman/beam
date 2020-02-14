@@ -149,10 +149,11 @@ trait ChoosesParking extends {
             currentBeamVehicle.beamVehicleType.id,
             currentPointUTM,
             CAR,
-            asDriver = true
+            asDriver = true,
+            Some(currentBeamVehicle.uid)
           )
         val bodyStreetVeh =
-          StreetVehicle(body.id, body.beamVehicleType.id, currentPointUTM, WALK, asDriver = true)
+          StreetVehicle(body.id, body.beamVehicleType.id, currentPointUTM, WALK, asDriver = true, None)
         val veh2StallRequest = RoutingRequest(
           currentLocUTM,
           stall.locationUTM,
@@ -175,7 +176,8 @@ trait ChoosesParking extends {
               body.beamVehicleType.id,
               SpaceTime(stall.locationUTM, currentPoint.time),
               WALK,
-              asDriver = true
+              asDriver = true,
+              Some(body.uid)
             )
           ),
           Some(attributes)

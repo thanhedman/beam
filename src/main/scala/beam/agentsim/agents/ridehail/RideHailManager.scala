@@ -1230,10 +1230,11 @@ class RideHailManager(
       rideHailLocation.vehicleType.id,
       SpaceTime((rideHailLocation.currentLocationUTM.loc, requestTime)),
       CAR,
-      asDriver = false
+      asDriver = false,
+      None
     )
     val rideHailVehicleAtPickup =
-      StreetVehicle(rideHailLocation.vehicleId, rideHailLocation.vehicleType.id, pickupSpaceTime, CAR, asDriver = false)
+      StreetVehicle(rideHailLocation.vehicleId, rideHailLocation.vehicleType.id, pickupSpaceTime, CAR, asDriver = false, None)
 
 // route from ride hailing vehicle to customer
     val rideHailAgent2Customer = RoutingRequest(
@@ -1765,7 +1766,8 @@ class RideHailManager(
           rideHailAgentLocation.vehicleType.id,
           SpaceTime((rideHailAgentLocation.currentLocationUTM.loc, tick)),
           CAR,
-          asDriver = false
+          asDriver = false,
+          None
         )
         val routingRequest = RoutingRequest(
           originUTM = rideHailAgentLocation.currentLocationUTM.loc,

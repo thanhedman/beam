@@ -46,6 +46,7 @@ class HouseholdFleetManager(parkingManager: ActorRef, vehicles: Map[Id[BeamVehic
           veh.spaceTime = SpaceTime(homeCoord.getX, homeCoord.getY, 0)
           veh.mustBeDrivenHome = true
           veh.useParkingStall(resp.stall)
+          logger.error("Household Fleet Manager pathed '" + self.path + "' Resolved Parking Response, so releasing vehicle and replying for vehicle " + veh.id)
           self ! ReleaseVehicleAndReply(veh)
       }
       triggerSender.foreach(actorRef => actorRef ! CompletionNotice(triggerId, Vector()))
@@ -71,10 +72,12 @@ class HouseholdFleetManager(parkingManager: ActorRef, vehicles: Map[Id[BeamVehic
     case ReleaseVehicle(vehicle) =>
       vehicle.unsetDriver()
       if (availableVehicles.contains(vehicle)) {
-        logger.warn("I can't release vehicle {} because I have it already", vehicle.id)
+        logger.error("I can't release vehicle {} because I have it already", vehicle.id)
       } else {
+        logger.error("Household Fleet Manager pathed '" + self.path + "' Currently available vehicles: " + availableVehicles.map(_.id).mkString(" ; "))
         availableVehicles = vehicle :: availableVehicles
         logger.debug("Vehicle {} is now available", vehicle.id)
+        logger.error("Household Fleet Manager pathed '" + self.path + "' NOW Currently available vehicles: " + availableVehicles.map(_.id).mkString(" ; "))
       }
 
     case ReleaseVehicleAndReply(vehicle, _) =>
@@ -82,8 +85,10 @@ class HouseholdFleetManager(parkingManager: ActorRef, vehicles: Map[Id[BeamVehic
       if (availableVehicles.contains(vehicle)) {
         sender ! Failure(new RuntimeException(s"I can't release vehicle ${vehicle.id} because I have it already"))
       } else {
+        logger.error("Household Fleet Manager pathed '" + self.path + "' Release and reply - Currently available vehicles: " + availableVehicles.map(_.id).mkString(" ; "))
         availableVehicles = vehicle :: availableVehicles
         logger.debug("Vehicle {} is now available", vehicle.id)
+        logger.error("Household Fleet Manager pathed '" + self.path + "' Release and reply - NOW Currently available vehicles: " + availableVehicles.map(_.id).mkString(" ; "))
         sender() ! Success
       }
 
@@ -92,9 +97,11 @@ class HouseholdFleetManager(parkingManager: ActorRef, vehicles: Map[Id[BeamVehic
         case firstVehicle :: rest =>
           logger.debug("Vehicle {} is now taken", firstVehicle.id)
           firstVehicle.becomeDriver(sender)
+          logger.error("Household Fleet Manager pathed '" + self.path + "' sending Mobility status response: " + firstVehicle.id + "; Leaving the rest as " + rest.map(_.id).mkString(" ; "))
           sender() ! MobilityStatusResponse(Vector(ActualVehicle(firstVehicle)))
           rest
         case Nil =>
+          logger.error("sending empty Mobility status Response")
           sender() ! MobilityStatusResponse(Vector())
           Nil
       }

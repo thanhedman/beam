@@ -50,7 +50,8 @@ trait ChoosesMode {
       ),
       SpaceTime(0.0, 0.0, 0),
       CAR,
-      asDriver = false
+      asDriver = false,
+      None
     )
 
   def bodyVehiclePersonId = PersonIdWithActorRef(id, self)
@@ -111,6 +112,8 @@ trait ChoosesMode {
             _,
             _
             ) =>
+          val vehicles = vehicle
+          logError("ChoosesMode sending Mobility status response on transition: " + beamVehicles(vehicle).id)
           self ! MobilityStatusResponse(Vector(beamVehicles(vehicle)))
         // Only need to get available street vehicles if our mode requires such a vehicle
         case ChoosesModeData(
@@ -152,18 +155,21 @@ trait ChoosesMode {
           implicit val executionContext: ExecutionContext = context.system.dispatcher
           Future
             .sequence(
-              vehicleFleets.map(
-                _ ? MobilityStatusInquiry(
+              vehicleFleets.map(x=> {
+                logError("Sending MobileStatusInquiry from ChoosesMode for id '" + id + "' and fleet manager '" + x + "' with path '" + x.path + "'")
+                x ? MobilityStatusInquiry(
                   id,
                   currentLocation,
                   _experiencedBeamPlan
                     .activities(currentActivityIndex)
                 )
+              }
               )
             )
             .map(
-              listOfResponses =>
-                MobilityStatusResponse(
+              listOfResponses => {
+                //logError("ChoosesMode sending Mobility status response: " + beamVehicles(vehicle).id)
+                val y = MobilityStatusResponse(
                   listOfResponses
                     .collect {
                       case MobilityStatusResponse(vehicles) =>
@@ -172,15 +178,19 @@ trait ChoosesMode {
                     .flatten
                     .toVector
               )
+                logError("ChoosesMode with id '" + id + "' sending Mobility status response on other transition: " + y.streetVehicle.map(_.id))
+              y}
             ) pipeTo self
         // Otherwise, send empty list to self
         case _ =>
+          logError("ChoosesMode sending empty Mobility status response on transition")
           self ! MobilityStatusResponse(Vector())
       }
   }
 
   when(ChoosingMode)(stateFunction = transform {
     case Event(MobilityStatusResponse(newlyAvailableBeamVehicles), choosesModeData: ChoosesModeData) =>
+      logError("Adding in Choosing mode mobility status response newly added vehicles: " + newlyAvailableBeamVehicles.map(_.id))
       beamVehicles ++= newlyAvailableBeamVehicles.map(v => v.id -> v)
       val currentPersonLocation = choosesModeData.currentLocation
       val availableModes: Seq[BeamMode] = availableModesForPerson(
@@ -206,7 +216,8 @@ trait ChoosesMode {
         body.beamVehicleType.id,
         currentPersonLocation,
         WALK,
-        asDriver = true
+        asDriver = true,
+        None
       )
       val nextAct = nextActivity(choosesModeData.personData).get
       val departTime = _currentTick.get
@@ -1106,6 +1117,8 @@ trait ChoosesMode {
 
       vehiclesNotUsed.collect {
         case ActualVehicle(vehicle) =>
+          logError("Releasing vehicle from chooses mode not used in FinishingModeChoice: " + vehicle.id)
+          beamVehicles.remove(vehicle.id)
           vehicle.manager.get ! ReleaseVehicle(vehicle)
       }
       scheduler ! CompletionNotice(
