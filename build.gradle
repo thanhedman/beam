@@ -108,6 +108,8 @@ allprojects {
 }
 
 dependencies {
+    // or-tools
+    compile fileTree(include: ['*.jar'], dir: 'libs/or-tools')
 
     compile(group: 'com.github.LBNL-UCB-STI', name: 'beam-utilities', version: 'v0.2.4') {
         exclude group: 'com.github.LBNL-UCB-STI', module: 'r5'
@@ -115,7 +117,7 @@ dependencies {
     }
 
     ////////////////////////////
-    // Java dependencies
+    // Java or-tools-mac
     ////////////////////////////
     compile group: 'com.google.inject', name: 'guice', version: '4.1.0'
     compile group: 'com.google.inject.extensions', name: 'guice-assistedinject', version: '4.1.0'
@@ -181,7 +183,7 @@ dependencies {
     testCompile group: "org.mockito", name: "mockito-core", version: "2.+"
 
     /////////////////////////////////
-    // Scala dependencies
+    // Scala or-tools-mac
     /////////////////////////////////
 
     // CORE Scala //
@@ -515,7 +517,7 @@ tasks.withType(ScalaCompile) {
     scalaCompileOptions.additionalParameters = ["-unchecked", "-deprecation", "-feature", "-Xfatal-warnings"]
 }
 
-task fmt(dependsOn: scalafmtAll) 
+task fmt(dependsOn: scalafmtAll)
 task checkScalaFmt() {
     doLast {
         try {

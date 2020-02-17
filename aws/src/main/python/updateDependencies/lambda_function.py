@@ -5,7 +5,7 @@ from botocore.errorfactory import ClientError
 
 initscript = (('''#cloud-config
 runcmd:
-  - echo "-------------------Updating Beam dependencies----------------------"
+  - echo "-------------------Updating Beam or-tools-mac----------------------"
   - cd /home/ubuntu/git/beam
   - echo "send notification ..."
   - /home/ubuntu/git/glip.sh -i "http://icons.iconarchive.com/icons/uiconstock/socialmedia/32/AWS-icon.png" -a "Updating Dependencies" -b "Beam automated deployment image update started on $(ec2metadata --instance-id)."
@@ -117,7 +117,7 @@ def lambda_handler(event, context):
     instance_type = os.environ['INSTANCE_TYPE']
     shutdown_behaviour = 'terminate'
     shutdown_wait = "10"
-    runName = 'update-beam-dependencies'
+    runName = 'update-beam-or-tools-mac'
     branches = os.environ['BRANCHES']
 
     script = initscript.replace('$BRANCH', branches).replace('$SHUTDOWN_WAIT', shutdown_wait)
