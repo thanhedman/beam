@@ -183,7 +183,7 @@ dependencies {
     testCompile group: "org.mockito", name: "mockito-core", version: "2.+"
 
     /////////////////////////////////
-    // Scala or-tools-mac
+    // Scala dependencies
     /////////////////////////////////
 
     // CORE Scala //
