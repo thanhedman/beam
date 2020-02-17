@@ -160,7 +160,7 @@ runcmd:
   - $PREPARE_URBANSIM_OUTPUT_SCRIPT
   - sudo ls output/urbansim-outputs/initial/*.gz | sudo xargs gunzip
   - sudo ls output/urbansim-inputs/initial/*.gz | sudo xargs gunzip 
-  - echo "installing or-tools-mac ..."
+  - echo "installing dependencies ..."
   - sudo apt-get install curl
   - curl -sL https://deb.nodesource.com/setup_8.x | sudo -E bash -
   - sudo apt-get install nodejs -y
