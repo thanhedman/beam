@@ -8,7 +8,6 @@ import beam.analysis.plots.passengerpertrip.GenericPassengerPerTrip;
 import beam.analysis.plots.passengerpertrip.IGraphPassengerPerTrip;
 import beam.analysis.plots.passengerpertrip.TncPassengerPerTrip;
 import beam.sim.OutputDataDescription;
-import beam.sim.metrics.Metrics;
 import beam.sim.metrics.SimulationMetricCollector;
 import beam.utils.OutputDataDescriptor;
 import com.google.common.base.CaseFormat;
@@ -251,7 +250,7 @@ public class DeadHeadingAnalysis implements GraphAnalysis, OutputDataDescriptor 
 
     private void updateDeadHeadingTNCMap(double length, int hour, Integer _num_passengers) {
         // to create appropriate legend with all possible entities on every iteration start
-        if (deadHeadingsTnc0Map.isEmpty()) {
+        if (deadHeadingsTnc0Map.isEmpty() && simMetricCollector.metricEnabled("ride-hail-trip-distance")) {
             for (int np = -1; np < 7; np++) {
                 writeTripDistanceMetric(0, 0, np);
             }
@@ -278,18 +277,21 @@ public class DeadHeadingAnalysis implements GraphAnalysis, OutputDataDescriptor 
     }
 
     private void writeTripDistanceMetric(int hour, double distanceInKilometers, Integer _num_passengers) {
-        HashMap<String, String> tags = new HashMap<>();
-        if (_num_passengers == -1) {
-            tags.put("trip-type", "  repositioning");
-        } else if (_num_passengers == 0) {
-            tags.put("trip-type", " deadheading");
-        } else {
-            tags.put("trip-type", _num_passengers.toString());
-        }
+        if (simMetricCollector.metricEnabled("ride-hail-trip-distance")) {
+            // white spaces in the beginning of tags are required for proper legend items order in graph
+            HashMap<String, String> tags = new HashMap<>();
+            if (_num_passengers == -1) {
+                tags.put("trip-type", "  repositioning");
+            } else if (_num_passengers == 0) {
+                tags.put("trip-type", " deadheading");
+            } else {
+                tags.put("trip-type", _num_passengers.toString());
+            }
 
-        int seconds = hour * 60 * 60;
-        double distanceInMiles = distanceInKilometers * 0.62137119;
-        simMetricCollector.writeIterationJava("ride-hail-trip-distance", seconds, distanceInMiles, Metrics.ShortLevel(), tags);
+            int seconds = hour * 60 * 60;
+            double distanceInMiles = distanceInKilometers * 0.62137119;
+            simMetricCollector.writeIterationJava("ride-hail-trip-distance", seconds, distanceInMiles, tags, false);
+        }
     }
 
 

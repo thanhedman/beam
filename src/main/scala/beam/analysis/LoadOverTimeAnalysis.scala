@@ -2,6 +2,7 @@ package beam.analysis
 
 import beam.agentsim.events._
 import beam.analysis.plots.{GraphAnalysis, GraphUtils, GraphsStatsAgentSimEventsListener}
+import beam.sim.common.GeoUtils
 import beam.sim.metrics.SimulationMetricCollector
 import beam.sim.metrics.SimulationMetricCollector.SimulationTime
 import beam.utils.logging.ExponentialLazyLogging
@@ -13,7 +14,7 @@ import org.matsim.core.controler.events.IterationEndsEvent
 
 import scala.collection.mutable
 
-class LoadOverTimeAnalysis(simMetricCollector: SimulationMetricCollector)
+class LoadOverTimeAnalysis(geoUtils: GeoUtils, simMetricCollector: SimulationMetricCollector)
     extends GraphAnalysis
     with ExponentialLazyLogging {
   private val loadOverTimeFileBaseName = "chargingPower"
@@ -75,21 +76,30 @@ class LoadOverTimeAnalysis(simMetricCollector: SimulationMetricCollector)
             parkingTypeToHourlyLoad.put(parkingType, mutable.Map(hourOfEvent -> (energyInkWh, 1)))
         }
 
-        simMetricCollector.write(
-          loadOverTimeFileBaseName,
-          SimulationTime(event.getTime.toInt),
-          Map(
-            SimulationMetricCollector.defaultMetricValueName -> 1.0,
-            "averageLoad"                                    -> energyInkWh,
-            "lon"                                            -> refuelSessionEvent.stall.locationUTM.getX,
-            "lat"                                            -> refuelSessionEvent.stall.locationUTM.getY
-          ),
-          Map(
-            "vehicleType"   -> loadVehicleType,
-            "typeOfCharger" -> chargerType,
-            "parkingType"   -> parkingType
+        if (simMetricCollector.metricEnabled(loadOverTimeFileBaseName)) {
+          // it turns out that coordinates already in WGS
+          // geoUtils.utm2Wgs(refuelSessionEvent.stall.locationUTM)
+          val locationWGS = refuelSessionEvent.stall.locationUTM
+
+          val sessionDuration = refuelSessionEvent.sessionDuration
+          val currentEventAverageLoadInkWh = if (sessionDuration != 0) energyInkWh / sessionDuration else 0
+
+          simMetricCollector.write(
+            loadOverTimeFileBaseName,
+            SimulationTime(event.getTime.toInt),
+            Map(
+              "count"       -> 1.0,
+              "averageLoad" -> currentEventAverageLoadInkWh,
+              "lon"         -> locationWGS.getX,
+              "lat"         -> locationWGS.getY
+            ),
+            Map(
+              "vehicleType"   -> loadVehicleType,
+              "typeOfCharger" -> chargerType,
+              "parkingType"   -> parkingType
+            )
           )
-        )
+        }
 
       case _ =>
     }

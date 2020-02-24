@@ -1,7 +1,7 @@
 package beam.analysis
 
 import beam.agentsim.agents.vehicles.BeamVehicleType
-import beam.agentsim.events.{ParkEvent, PathTraversalEvent, RefuelSessionEvent}
+import beam.agentsim.events.{ParkingEvent, PathTraversalEvent, RefuelSessionEvent}
 import beam.analysis.plots.GraphAnalysis
 import beam.router.Modes.BeamMode
 import beam.sim.BeamServices
@@ -122,7 +122,7 @@ class RideHailFleetAnalysis(beamServices: BeamServices) extends GraphAnalysis {
           }
         }
 
-      case parkEvent: ParkEvent =>
+      case parkEvent: ParkingEvent =>
         val vehicle = parkEvent.vehicleId.toString
 
         if (rideHailEvCav.contains(vehicle)) {
@@ -143,7 +143,7 @@ class RideHailFleetAnalysis(beamServices: BeamServices) extends GraphAnalysis {
     processVehicleStates()
   }
 
-  def collectEvent(
+  private def collectEvent(
     vehicleEventTypeMap: mutable.Map[String, ArrayBuffer[Event]],
     event: Event,
     vehicle: String,
@@ -159,14 +159,14 @@ class RideHailFleetAnalysis(beamServices: BeamServices) extends GraphAnalysis {
     }
   }
 
-  def processVehicleStates() {
+  private def processVehicleStates() {
     processEvents(rideHailEvCav, true, true, "rh-ev-cav")
     processEvents(ridehailEvNonCav, true, false, "rh-ev-nocav")
     processEvents(rideHailNonEvCav, true, true, "rh-noev-cav")
     processEvents(rideHailNonEvNonCav, true, false, "rh-noev-nocav")
   }
 
-  def processEvents(
+  private def processEvents(
     vehicleEventTypeMap: mutable.Map[String, ArrayBuffer[Event]],
     isRH: Boolean,
     isCAV: Boolean,
@@ -209,12 +209,12 @@ class RideHailFleetAnalysis(beamServices: BeamServices) extends GraphAnalysis {
     }
   }
 
-  def write(metric: String, value: Double, time: Int, key: String): Unit = {
+  private def write(metric: String, value: Double, time: Int, key: String): Unit = {
     val tags = Map("vehicle-state" -> key)
-    beamServices.simMetricCollector.write(
+    beamServices.simMetricCollector.writeIteration(
       metric,
       SimulationTime(time * 60 * 60),
-      Map(SimulationMetricCollector.defaultMetricValueName -> value),
+      value,
       tags,
       overwriteIfExist = true
     )
@@ -228,7 +228,7 @@ class RideHailFleetAnalysis(beamServices: BeamServices) extends GraphAnalysis {
     processedHour = 0
   }
 
-  def assignVehicleDayToLocationMatrix(
+  private def assignVehicleDayToLocationMatrix(
     days: ArrayBuffer[Event],
     isRH: Boolean,
     isCAV: Boolean
@@ -320,7 +320,7 @@ class RideHailFleetAnalysis(beamServices: BeamServices) extends GraphAnalysis {
     (timeUtilization, distanceUtilization)
   }
 
-  def classifyEventLocation(
+  private def classifyEventLocation(
     event: Event,
     lastEvent: Boolean,
     chargingNext: Boolean,
@@ -381,7 +381,7 @@ class RideHailFleetAnalysis(beamServices: BeamServices) extends GraphAnalysis {
         } else {
           EventStatus(event.getTime, event.getTime + duration, "charging", Some("parked"))
         }
-      case event: ParkEvent =>
+      case event: ParkingEvent =>
         if (isRH)
           EventStatus(event.getTime, 30 * 3600, "idle")
         else

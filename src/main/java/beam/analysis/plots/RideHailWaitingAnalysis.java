@@ -3,14 +3,16 @@ package beam.analysis.plots;
 import beam.agentsim.events.ModeChoiceEvent;
 import beam.analysis.IterationSummaryAnalysis;
 import beam.analysis.plots.modality.RideHailDistanceRowModel;
+import beam.sim.common.GeoUtils;
 import beam.sim.config.BeamConfig;
-import beam.sim.metrics.Metrics;
 import beam.sim.metrics.SimulationMetricCollector;
 import beam.utils.DebugLib;
+import com.conveyal.r5.transit.TransportNetwork;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.plot.CategoryPlot;
 import org.jfree.data.category.CategoryDataset;
 import org.jfree.data.general.DatasetUtilities;
+import org.matsim.api.core.v01.Coord;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.events.Event;
 import org.matsim.api.core.v01.events.PersonEntersVehicleEvent;
@@ -18,6 +20,9 @@ import org.matsim.api.core.v01.population.Person;
 import org.matsim.core.controler.events.IterationEndsEvent;
 import org.matsim.core.utils.collections.Tuple;
 import org.matsim.core.utils.misc.Time;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -33,6 +38,8 @@ import static java.lang.Integer.max;
  * @author abid
  */
 public class RideHailWaitingAnalysis implements GraphAnalysis, IterationSummaryAnalysis {
+
+    private static final Logger log = LoggerFactory.getLogger(DebugLib.class);
 
     public static final String RIDE_HAIL = "ride_hail";
     public static final String RIDE_HAIL_POOLED = "ride_hail_pooled";
@@ -163,13 +170,21 @@ public class RideHailWaitingAnalysis implements GraphAnalysis, IterationSummaryA
 
     private static int numberOfTimeBins;
 
+    private GeoUtils geo;
+    private TransportNetwork transportNetwork;
+
     public RideHailWaitingAnalysis(StatsComputation<Tuple<List<Double>, Map<Integer, List<Double>>>, Tuple<Map<Integer, Map<Double, Integer>>, double[][]>> statComputation,
                                    BeamConfig beamConfig,
-                                   SimulationMetricCollector simMetricCollector) {
+                                   SimulationMetricCollector simMetricCollector,
+                                   GeoUtils geo,
+                                   TransportNetwork transportNetwork) {
         this.statComputation = statComputation;
         this.writeGraph = beamConfig.beam().outputs().writeGraphs();
         this.simMetricCollector = simMetricCollector;
         final int timeBinSize = beamConfig.beam().agentsim().timeBinSize();
+
+        this.geo = geo;
+        this.transportNetwork = transportNetwork;
 
         String endTime = beamConfig.matsim().modules().qsim().endTime();
         Double _endTime = Time.parseTime(endTime);
@@ -335,8 +350,18 @@ public class RideHailWaitingAnalysis implements GraphAnalysis, IterationSummaryA
         }
     }
 
-    private void processRideHailWaitingTimes(Event event, double waitingTime) {
+    private void processRideHailWaitingTimes(ModeChoiceEvent event, double waitingTime) {
         int hour = GraphsStatsAgentSimEventsListener.getEventHour(event.getTime());
+
+        if (simMetricCollector.metricEnabled("ride-hail-waiting-time-map")) {
+            try {
+                int linkId = Integer.parseInt(event.location);
+                Coord coord = geo.coordOfR5Edge(transportNetwork.streetLayer, linkId);
+                simMetricCollector.writeIterationMapPoint("ride-hail-waiting-time-map", event.getTime(), waitingTime, coord.getY(), coord.getX(), false);
+            } catch (NumberFormatException e) {
+                log.error("Can't parse 'event.location' as Integer. Event: " + event.toString());
+            }
+        }
 
         waitingTime = waitingTime / 60;
 
@@ -349,6 +374,7 @@ public class RideHailWaitingAnalysis implements GraphAnalysis, IterationSummaryA
         this.rideHailCount++;
         hoursTimesMap.put(hour, timeList);
 
+        // to write metrics once per hour
         if (lastHourWrittenToStats < hour) {
             lastHourWrittenToStats = hour;
             writeWaitingTimeToStats(hoursTimesMap, getCategories());
@@ -356,25 +382,27 @@ public class RideHailWaitingAnalysis implements GraphAnalysis, IterationSummaryA
     }
 
     private void writeWaitingTimeToStats(Map<Integer, List<Double>> hourToWaitings, List<Double> categories) {
-        Map<Integer, Map<Double, Integer>> hourToCategories = WaitingStatsComputation.calculateHourlyData(hourToWaitings, categories);
+        if (simMetricCollector.metricEnabled("ride-hail-waiting-time")) {
+            Map<Integer, Map<Double, Integer>> hourToCategories = WaitingStatsComputation.calculateHourlyData(hourToWaitings, categories);
 
-        DecimalFormat df = new DecimalFormat("##");
-        df.setRoundingMode(RoundingMode.FLOOR);
+            DecimalFormat df = new DecimalFormat("##");
+            df.setRoundingMode(RoundingMode.FLOOR);
 
-        hourToCategories.forEach((hour, catToCnt) -> {
-            catToCnt.forEach((category, count) -> {
-                String categoryName = "";
-                if (category.equals(categoryValueMax)) {
-                    categoryName = df.format(categoryValueBeforeMax) + "+";
-                } else {
-                    categoryName = df.format(category);
-                }
+            hourToCategories.forEach((hour, catToCnt) -> {
+                catToCnt.forEach((category, count) -> {
+                    String categoryName = "";
+                    if (category.equals(categoryValueMax)) {
+                        categoryName = df.format(categoryValueBeforeMax) + "+";
+                    } else {
+                        categoryName = df.format(category);
+                    }
 
-                HashMap<String, String> tags = new HashMap<>(1);
-                tags.put("category", categoryName);
-                simMetricCollector.writeIterationJava("ride-hail-waiting-time", hour * 60 * 60, count, Metrics.ShortLevel(), tags, true);
+                    HashMap<String, String> tags = new HashMap<>(1);
+                    tags.put("category", categoryName);
+                    simMetricCollector.writeIterationJava("ride-hail-waiting-time", hour * 60 * 60, count, tags, true);
+                });
             });
-        });
+        }
     }
 
     private void processRideHailingSingleWaitingTimes(Event event, double waitingTime) {
