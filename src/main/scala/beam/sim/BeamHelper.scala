@@ -29,6 +29,7 @@ import beam.sim.ArgumentsParser.{Arguments, Worker}
 import beam.sim.common.{GeoUtils, GeoUtilsImpl}
 import beam.sim.config._
 import beam.sim.metrics.Metrics._
+import beam.sim.metrics.SimulationMetricCollector.{defaultMetricName, SimulationTime}
 import beam.sim.metrics.{InfluxDbSimulationMetricCollector, SimulationMetricCollector}
 import beam.sim.modules.{BeamAgentModule, UtilsModule}
 import beam.sim.population.PopulationAdjustment
@@ -798,7 +799,11 @@ trait BeamHelper extends LazyLogging {
     val privateFleetSize = beamScenario.privateVehicles.size
 
     def writeMetric(metric: String, value: Int): Unit = {
-      beamServices.simMetricCollector.writeGlobal(metric, value)
+      beamServices.simMetricCollector.write(metric, SimulationTime(0), Map(defaultMetricName -> value))
+    }
+
+    def writeStrMetric(metric: String, value: String): Unit = {
+      beamServices.simMetricCollector.writeStr(metric, SimulationTime(0), Map(defaultMetricName -> value))
     }
 
     writeMetric("beam-run-population-size", numOfPersons)
@@ -875,14 +880,15 @@ trait BeamHelper extends LazyLogging {
 
         writeMetric("beam-run-charging-depots-cnt", cntChargingDepots)
 
-      if (beamConfig.beam.agentsim.taz.parkingStallChargerInitMethod == "UNLIMITED") {
-        writeStrMetric("beam-run-public-fast-charge-cnt", "UNLIMITED")
-        writeStrMetric("beam-run-public-fast-charge-stalls-cnt", "UNLIMITED")
-        writeStrMetric("beam-run-charging-depots-stalls-cnt", "UNLIMITED")
-      } else {
-        writeMetric("beam-run-public-fast-charge-cnt", cntPublicFastCharge)
-        writeMetric("beam-run-public-fast-charge-stalls-cnt", cntPublicFastChargeStalls)
-        writeMetric("beam-run-charging-depots-stalls-cnt", cntChargingDepotsStalls)
+        if (beamConfig.beam.agentsim.taz.parkingStallChargerInitMethod == "UNLIMITED") {
+        //if (cntPublicFastCharge < 0 || cntPublicFastChargeStalls < 0 || cntChargingDepotsStalls < 0) {
+          writeStrMetric("beam-run-public-fast-charge-cnt", "UNLIMITED")
+          writeStrMetric("beam-run-public-fast-charge-stalls-cnt", "UNLIMITED")
+          writeStrMetric("beam-run-charging-depots-stalls-cnt", "UNLIMITED")
+        } else {
+          writeMetric("beam-run-public-fast-charge-cnt", cntPublicFastCharge)
+          writeMetric("beam-run-public-fast-charge-stalls-cnt", cntPublicFastChargeStalls)
+          writeMetric("beam-run-charging-depots-stalls-cnt", cntChargingDepotsStalls)
       }
       } else {
         logger.error(
