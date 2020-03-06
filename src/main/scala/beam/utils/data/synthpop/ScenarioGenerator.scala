@@ -147,6 +147,20 @@ class SimpleScenarioGenerator(
     val allWorkingDestinations = blockGroupGeoIdToHouseholds.values.flatMap { x =>
       x.flatMap { case (_, xs) => xs.map(_.workDest) }
     }
+
+    val updatedHouseholds = blockGroupGeoIdToHouseholds.flatMap(x => x._2.map(y => y._1))
+
+
+    val tazGeoIdToPopulation = updatedHouseholds.foldLeft(Map[TazGeoId, Int]()) {
+      case (acc, c) =>
+        c.tazGeoIdOption match {
+          case Some(tazGeoId) =>
+            val occur = acc.getOrElse(tazGeoId, 0) + c.numOfPersons
+            acc.updated(tazGeoId, occur)
+          case _ => acc
+        }
+    }
+
     val tazGeoIdToOccurrences = allWorkingDestinations.foldLeft(Map[TazGeoId, Int]()) {
       case (acc, c) =>
         val occur = acc.getOrElse(c, 0) + 1
@@ -316,12 +330,15 @@ class SimpleScenarioGenerator(
       .map {
         case (blockGroupGeoId, blockGroupGeom) =>
           // Intersect with all and get the best by the covered area
-          val allIntersections = geoSvc.tazGeoIdToGeom.map {
+          val allIntersections = geoSvc.tazGeoIdToGeom.flatMap {
             case (tazGeoId, tazGeo) =>
-              val intersection = blockGroupGeom.intersection(tazGeo)
-              (intersection, blockGroupGeoId, tazGeoId)
+              if (blockGroupGeom.intersects(tazGeo)) {
+                List[TazGeoId](tazGeoId)
+              } else {
+                List[TazGeoId]()
+              }
           }
-          blockGroupGeoId -> allIntersections.map(_._3).toList
+          blockGroupGeoId -> allIntersections.toList
       }
     blockGroupToTazs
   }
@@ -336,7 +353,8 @@ class SimpleScenarioGenerator(
           // BlockGroupGeoId1 -> TAZ1
           // BlockGroupGeoId1 -> TAZ2
           // BlockGroupGeoId1 -> TAZ3
-          val tazGeoId: TazGeoId = new Random(randomSeed).shuffle(blockGroupToToTazs(blockGroupGeoId)).head
+          val possibleTazGeoIds = blockGroupToToTazs.getOrElse(blockGroupGeoId, blockGroupToToTazs.values.flatten)
+          val tazGeoId: TazGeoId = new Random(randomSeed).shuffle(possibleTazGeoIds).head
           val timeLeavingODPairs = sourceToTimeLeavingOD(tazGeoId.asUniqueKey)
           val peopleInHouseholds = households.flatMap(x => householdIdToPersons(x.id))
           logger.info(s"In ${households.size} there are ${peopleInHouseholds.size} people")
@@ -373,7 +391,7 @@ class SimpleScenarioGenerator(
                 s"Seems like the data for the persons not fully created. Original number of persons: ${persons.size}, but personWithWorkDestAndTimeLeaving size is ${personWithWorkDestAndTimeLeaving.size}"
               )
             }
-            (household, personWithWorkDestAndTimeLeaving)
+            (household.updateTazId(tazGeoId), personWithWorkDestAndTimeLeaving)
           }
           blockGroupGeoId -> householdsWithPersonData
       }

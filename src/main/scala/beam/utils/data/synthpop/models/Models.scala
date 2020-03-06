@@ -67,7 +67,13 @@ object Models {
     numOfVehicles: Int,
     income: Double,
     numOfChildren: Int,
-    numOfWorkers: Int
-  )
+    numOfWorkers: Int,
+    tazGeoIdOption: Option[TazGeoId] = None
+  ) {
+    def updateTazId(tazGeoId: TazGeoId): Household = {
+      Household(id, geoId, numOfPersons, numOfVehicles, income, numOfChildren, numOfWorkers, Some(tazGeoId))
+    }
+  }
+
   case class Person(age: Int, gender: Gender, householdId: String)
 }
