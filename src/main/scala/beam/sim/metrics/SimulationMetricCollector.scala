@@ -152,9 +152,40 @@ object NoOpSimulationMetricCollector extends SimulationMetricCollector {
   def metricEnabled(metricName: String): Boolean = false
 }
 
+object InfluxDbSimulationMetricCollector {
+
+  def getNextInfluxTs(
+    metricToTsNano: ConcurrentHashMap[String, Long],
+    metricName: String,
+    tsNano: Long,
+    delta: Long
+  ): Long = {
+    // See https://github.com/influxdata/influxdb/issues/2055
+    // Points in a series can not have the same exact time (down to nanosecond). A series is defined by the measurement and tagset.
+    // We store the last seen `tsNano` and add up `step` in case if it is already there
+
+    val mappingFunction = new java.util.function.BiFunction[String, Long, Long]() {
+      override def apply(key: String, oldValue: Long): Long = {
+        if (oldValue < tsNano) {
+          tsNano + delta
+        } else {
+          oldValue + delta
+        }
+      }
+    }
+
+    val key = s"$metricName:$tsNano"
+    val newTs: Long = metricToTsNano.compute(key, mappingFunction)
+    newTs
+  }
+}
+
 class InfluxDbSimulationMetricCollector @Inject()(beamCfg: BeamConfig)
     extends SimulationMetricCollector
     with LazyLogging {
+
+  import InfluxDbSimulationMetricCollector._
+
   private val cfg = beamCfg.beam.sim.metric.collector.influxDbSimulationMetricCollector
   private val metricToLastSeenTs: ConcurrentHashMap[String, Long] = new ConcurrentHashMap[String, Long]()
   private val step: Long = TimeUnit.MICROSECONDS.toNanos(1L)
@@ -170,7 +201,14 @@ class InfluxDbSimulationMetricCollector @Inject()(beamCfg: BeamConfig)
     scala.collection.immutable.HashSet(metrics: _*)
   }
 
-  def metricEnabled(metricName: String): Boolean = enabledMetrics.contains(metricName)
+  def metricEnabled(metricName: String): Boolean = {
+    val isEnabled = enabledMetrics.contains(metricName)
+    if (!isEnabled) {
+      disabledMetrics.add(metricName)
+    }
+
+    isEnabled
+  }
 
   private val todayAsNanos: Long = {
     val todayInstant = todayBeginningOfDay.toInstant(ZoneId.systemDefault().getRules.getOffset(todayBeginningOfDay))
@@ -222,8 +260,6 @@ class InfluxDbSimulationMetricCollector @Inject()(beamCfg: BeamConfig)
       }
 
       maybeInfluxDB.foreach(_.write(withOtherTags.build()))
-    } else {
-      disabledMetrics.add(metricName)
     }
   }
 
@@ -253,21 +289,19 @@ class InfluxDbSimulationMetricCollector @Inject()(beamCfg: BeamConfig)
       }
 
       maybeInfluxDB.foreach(_.write(withOtherTags.build()))
-    } else {
-      disabledMetrics.add(metricName)
     }
   }
 
   override def clear(): Unit = {
     metricToLastSeenTs.clear()
-
-    logger.info(s"Following metrics was disabled: ${disabledMetrics.mkString(",")}")
-    logger.info(s"Following metrics was enabled: ${enabledMetrics.mkString(",")}")
   }
 
   override def close(): Unit = {
     Try(maybeInfluxDB.foreach(_.flush()))
     Try(maybeInfluxDB.foreach(_.close()))
+
+    logger.info(s"Following metrics was disabled: ${disabledMetrics.mkString(",")}")
+    logger.info(s"Following metrics was enabled: ${enabledMetrics.mkString(",")}")
   }
 
   private def influxTime(metricName: String, simulationTimeSeconds: Long, overwriteIfExist: Boolean): Long = {
@@ -277,18 +311,7 @@ class InfluxDbSimulationMetricCollector @Inject()(beamCfg: BeamConfig)
     if (overwriteIfExist) {
       tsNano
     } else {
-      getNextInfluxTs(metricName, tsNano)
+      getNextInfluxTs(metricToLastSeenTs, metricName, tsNano, step)
     }
-  }
-
-  private def getNextInfluxTs(metricName: String, tsNano: Long): Long = {
-    // See https://github.com/influxdata/influxdb/issues/2055
-    // Points in a series can not have the same exact time (down to nanosecond). A series is defined by the measurement and tagset.
-    // We store the last seen `tsNano` and add up `step` in case if it is already there
-    val key = s"$metricName:$tsNano"
-    val prevTs = metricToLastSeenTs.getOrDefault(key, tsNano)
-    val newTs = prevTs + step
-    metricToLastSeenTs.put(key, newTs)
-    newTs
   }
 }

@@ -424,6 +424,8 @@ class BeamSim @Inject()(
       })
 
     Skims.clear()
+
+    beamServices.simMetricCollector.close()
   }
 
   private def writeSummaryVehicleStats(summaryVehicleStatsFile: File): immutable.HashSet[String] = {
