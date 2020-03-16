@@ -7,11 +7,13 @@ import java.util.Properties
 
 import beam.agentsim.agents.choice.mode.{ModeIncentive, PtFares}
 import beam.agentsim.agents.ridehail.{RideHailIterationHistory, RideHailSurgePricingManager}
+import beam.agentsim.agents.vehicles.VehicleCategory.MediumDutyPassenger
 import beam.agentsim.agents.vehicles._
 import beam.agentsim.events.handling.BeamEventsHandling
-import beam.agentsim.infrastructure.taz.TAZTreeMap
+import beam.agentsim.infrastructure.taz.{H3TAZ, TAZTreeMap}
 import beam.analysis.ActivityLocationPlotter
 import beam.analysis.plots.{GraphSurgePricing, RideHailRevenueAnalysis}
+import beam.matsim.{CustomPlansDumpingImpl, MatsimConfigUpdater}
 import beam.replanning._
 import beam.replanning.utilitybased.UtilityBasedModeChoice
 import beam.router._
@@ -44,7 +46,7 @@ import org.matsim.core.api.experimental.events.EventsManager
 import org.matsim.core.config.groups.TravelTimeCalculatorConfigGroup
 import org.matsim.core.config.{Config => MatsimConfig}
 import org.matsim.core.controler._
-import org.matsim.core.controler.corelisteners.{ControlerDefaultCoreListenersModule, EventsHandling}
+import org.matsim.core.controler.corelisteners.{ControlerDefaultCoreListenersModule, EventsHandling, PlansDumping}
 import org.matsim.core.scenario.{MutableScenario, ScenarioBuilder, ScenarioByInstanceModule, ScenarioUtils}
 import org.matsim.core.trafficmonitoring.TravelTimeCalculator
 import org.matsim.households.Household
@@ -153,7 +155,14 @@ trait BeamHelper extends LazyLogging {
           bind(classOf[BeamConfigHolder])
           val beamConfigChangesObservable = new BeamConfigChangesObservable(beamConfig)
 
+          bind(classOf[MatsimConfigUpdater]).asEagerSingleton()
+
+          bind(classOf[PlansDumping]).to(classOf[CustomPlansDumpingImpl])
+
           bind(classOf[BeamConfigChangesObservable]).toInstance(beamConfigChangesObservable)
+
+          bind(classOf[TerminationCriterion]).to(classOf[CustomTerminateAtFixedIterationNumber])
+
           bind(classOf[PrepareForSim]).to(classOf[BeamPrepareForSim])
           bind(classOf[RideHailSurgePricingManager]).asEagerSingleton()
 
@@ -200,8 +209,6 @@ trait BeamHelper extends LazyLogging {
           bind(classOf[NetworkHelper]).to(classOf[NetworkHelperImpl]).asEagerSingleton()
           bind(classOf[RideHailIterationHistory]).asEagerSingleton()
           bind(classOf[RouteHistory]).asEagerSingleton()
-          bind(classOf[BeamSkimmer]).asEagerSingleton()
-          bind(classOf[TravelTimeObserved]).asEagerSingleton()
           bind(classOf[FareCalculator]).asEagerSingleton()
           bind(classOf[TollCalculator]).asEagerSingleton()
 
@@ -234,6 +241,7 @@ trait BeamHelper extends LazyLogging {
     )
 
     val networkCoordinator = buildNetworkCoordinator(beamConfig)
+    val tazMap = TAZTreeMap.getTazTreeMap(beamConfig.beam.agentsim.taz.filePath)
 
     BeamScenario(
       readFuelTypeFile(beamConfig.beam.agentsim.agents.vehicles.fuelTypesFilePath).toMap,
@@ -248,8 +256,9 @@ trait BeamHelper extends LazyLogging {
       PtFares(beamConfig.beam.agentsim.agents.ptFare.filePath),
       networkCoordinator.transportNetwork,
       networkCoordinator.network,
-      TAZTreeMap.getTazTreeMap(beamConfig.beam.agentsim.taz.filePath),
-      ModeIncentive(beamConfig.beam.agentsim.agents.modeIncentive.filePath)
+      tazMap,
+      ModeIncentive(beamConfig.beam.agentsim.agents.modeIncentive.filePath),
+      H3TAZ(networkCoordinator.network, tazMap, beamConfig)
     )
   }
 
@@ -291,12 +300,13 @@ trait BeamHelper extends LazyLogging {
 
   // Note that this assumes standing room is only available on transit vehicles. Not sure of any counterexamples modulo
   // say, a yacht or personal bus, but I think this will be fine for now.
+  // New Feb-2020: Switched over to MediumDutyPassenger -> Transit to solve issue with AV shuttles
   private def maybeScaleTransit(beamConfig: BeamConfig, vehicleTypes: Map[Id[BeamVehicleType], BeamVehicleType]) = {
     beamConfig.beam.agentsim.tuning.transitCapacity match {
       case Some(scalingFactor) =>
         vehicleTypes.map {
           case (id, bvt) =>
-            id -> (if (bvt.standingRoomCapacity > 0)
+            id -> (if (bvt.vehicleCategory == MediumDutyPassenger)
                      bvt.copy(
                        seatingCapacity = Math.ceil(bvt.seatingCapacity.toDouble * scalingFactor).toInt,
                        standingRoomCapacity = Math.ceil(bvt.standingRoomCapacity.toDouble * scalingFactor).toInt

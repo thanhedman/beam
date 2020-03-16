@@ -9,13 +9,15 @@ import akka.util.Timeout
 import beam.agentsim.agents.BeamAgent.Finish
 import beam.agentsim.agents.ridehail.RideHailManager.{BufferedRideHailRequestsTrigger, RideHailRepositioningTrigger}
 import beam.agentsim.agents.ridehail.{RideHailIterationHistory, RideHailManager, RideHailSurgePricingManager}
-import beam.agentsim.agents.vehicles.BeamVehicleType
+import beam.agentsim.agents.vehicles.{BeamVehicleType, EventsAccumulator}
 import beam.agentsim.agents.{BeamAgent, InitializeTrigger, Population, TransitSystem}
 import beam.agentsim.infrastructure.ZonalParkingManager
 import beam.agentsim.scheduler.BeamAgentScheduler
 import beam.agentsim.scheduler.BeamAgentScheduler.{CompletionNotice, ScheduleTrigger, StartSchedule}
 import beam.router._
 import beam.router.osm.TollCalculator
+import beam.router.skim.TAZSkimsCollector
+import beam.router.skim.TAZSkimsCollector.TAZSkimsCollectionTrigger
 import beam.sim.common.GeoUtils
 import beam.sim.config.BeamConfig.Beam
 import beam.sim.metrics.{Metrics, MetricsSupport}
@@ -47,8 +49,6 @@ class BeamMobsim @Inject()(
   val rideHailSurgePricingManager: RideHailSurgePricingManager,
   val rideHailIterationHistory: RideHailIterationHistory,
   val routeHistory: RouteHistory,
-  val beamSkimmer: BeamSkimmer,
-  val travelTimeObserved: TravelTimeObserved,
   val geo: GeoUtils,
   val networkHelper: NetworkHelper
 ) extends Mobsim
@@ -73,11 +73,10 @@ class BeamMobsim @Inject()(
       Props(
         new BeamMobsimIteration(
           beamServices,
+          eventsManager,
           rideHailSurgePricingManager,
           rideHailIterationHistory,
-          routeHistory,
-          beamSkimmer,
-          travelTimeObserved
+          routeHistory
         )
       ),
       "BeamMobsim.iteration"
@@ -116,11 +115,10 @@ class BeamMobsim @Inject()(
 
 class BeamMobsimIteration(
   val beamServices: BeamServices,
+  val eventsManager: EventsManager,
   val rideHailSurgePricingManager: RideHailSurgePricingManager,
   val rideHailIterationHistory: RideHailIterationHistory,
-  val routeHistory: RouteHistory,
-  val beamSkimmer: BeamSkimmer,
-  val travelTimeObserved: TravelTimeObserved
+  val routeHistory: RouteHistory
 ) extends Actor
     with ActorLogging
     with MetricsSupport {
@@ -143,6 +141,19 @@ class BeamMobsimIteration(
   )
   context.system.eventStream.subscribe(errorListener, classOf[DeadLetter])
   context.watch(scheduler)
+
+  val eventsAccumulator: Option[ActorRef] =
+    if (beamConfig.beam.agentsim.collectEvents)
+      Some(
+        context.actorOf(EventsAccumulator.props(scheduler, beamServices.beamConfig))
+      )
+    else None
+
+  eventsManager match {
+    case lem: LoggingEventsManager =>
+      lem.asInstanceOf[LoggingEventsManager].setEventsAccumulator(eventsAccumulator)
+    case _ =>
+  }
 
   private val envelopeInUTM = geo.wgs2Utm(beamScenario.transportNetwork.streetLayer.envelope)
   envelopeInUTM.expandBy(beamConfig.beam.spatial.boundingBoxBuffer)
@@ -179,7 +190,6 @@ class BeamMobsimIteration(
         activityQuadTreeBounds,
         rideHailSurgePricingManager,
         rideHailIterationHistory.oscillationAdjustedTNCIterationStats,
-        beamSkimmer,
         routeHistory
       )
     ).withDispatcher("ride-hail-manager-pinned-dispatcher"),
@@ -205,7 +215,7 @@ class BeamMobsimIteration(
 
   private val sharedVehicleFleets = config.agents.vehicles.sharedFleets.map { fleetConfig =>
     context.actorOf(
-      Fleets.lookup(fleetConfig).props(beamServices, beamSkimmer, scheduler, parkingManager),
+      Fleets.lookup(fleetConfig).props(beamServices, scheduler, parkingManager),
       fleetConfig.name
     )
   }
@@ -245,8 +255,6 @@ class BeamMobsimIteration(
       sharedVehicleFleets,
       matsimServices.getEvents,
       routeHistory,
-      beamSkimmer,
-      travelTimeObserved,
       envelopeInUTM
     ),
     "population"
@@ -255,6 +263,14 @@ class BeamMobsimIteration(
   scheduler ! ScheduleTrigger(InitializeTrigger(0), population)
 
   scheduleRideHailManagerTimerMessages()
+
+  //to monitor with TAZSkimmer add actor hereinafter
+  private val tazSkimmer = context.actorOf(
+    TAZSkimsCollector.props(scheduler, beamServices, rideHailManager +: sharedVehicleFleets),
+    "taz-skims-collector"
+  )
+  context.watch(tazSkimmer)
+  scheduler ! ScheduleTrigger(InitializeTrigger(0), tazSkimmer)
 
   def prepareMemoryLoggingTimerActor(
     timeoutInSeconds: Int,
@@ -285,10 +301,15 @@ class BeamMobsimIteration(
       population ! Finish
       rideHailManager ! Finish
       transitSystem ! Finish
+      tazSkimmer ! Finish
+      if (eventsAccumulator.isDefined) {
+        eventsAccumulator.get ! Finish
+      }
       context.stop(scheduler)
       context.stop(errorListener)
       context.stop(parkingManager)
       sharedVehicleFleets.foreach(context.stop)
+      context.stop(tazSkimmer)
       if (beamConfig.beam.debug.debugActorTimerIntervalInSec > 0) {
         debugActorWithTimerCancellable.cancel()
         context.stop(debugActorWithTimerActorRef)
